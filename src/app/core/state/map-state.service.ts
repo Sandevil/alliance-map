@@ -251,6 +251,18 @@ export class MapStateService {
     return { ok: true, errors: [] };
   }
 
+  async publishCurrentState(note?: string): Promise<boolean> {
+    const state = this.cloneState();
+
+    await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state, 'draft');
+    await this.dataRepository.createRevision(MapStateService.DEFAULT_MAP_ID, state, note, {
+      stage: 'draft',
+      eventType: 'autosave',
+    });
+
+    return this.dataRepository.publishDraft(MapStateService.DEFAULT_MAP_ID, note);
+  }
+
   updatePlayer(playerId: string, patch: { name: string; power: number }): RuleValidationResult {
     const next = this.cloneState();
 

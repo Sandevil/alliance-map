@@ -124,6 +124,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   readonly isResizeDialogOpen = signal(false);
   readonly isExternalReferenceDialogOpen = signal(false);
   readonly isSettingsMenuOpen = signal(false);
+  readonly isPublishing = signal(false);
   readonly editingPlayerId = signal<string | null>(null);
 
   readonly gridCells = computed(() => {
@@ -569,6 +570,24 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   resetMapStateFromSettings(): void {
     this.closeSettingsMenu();
     this.resetMapState();
+  }
+
+  async publishMapFromSettings(): Promise<void> {
+    if (this.isPublishing()) {
+      return;
+    }
+
+    this.closeSettingsMenu();
+    this.isPublishing.set(true);
+
+    try {
+      const published = await this.mapStateService.publishCurrentState('Manual publish from settings');
+      this.feedback.set(published ? 'Draft published.' : 'No draft available to publish.');
+    } catch {
+      this.feedback.set('Publish failed.');
+    } finally {
+      this.isPublishing.set(false);
+    }
   }
 
   closeSidebar(): void {

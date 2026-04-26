@@ -63,6 +63,10 @@
                 <span class="material-symbols-outlined">image</span>
                 <span>Export PNG</span>
               </button>
+              <button type="button" role="menuitem" (click)="publishMapFromSettings()" [disabled]="isPublishing()">
+                <span class="material-symbols-outlined">publish</span>
+                <span>{{ isPublishing() ? 'Publishing...' : 'Publish map' }}</span>
+              </button>
               <button type="button" role="menuitem" (click)="resetMapStateFromSettings()">
                 <span class="material-symbols-outlined">restart_alt</span>
                 <span>Reset map</span>
