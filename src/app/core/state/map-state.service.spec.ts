@@ -2,38 +2,49 @@ import { TestBed } from '@angular/core/testing';
 
 import { MapState, TILE_RULES } from '../domain';
 import { MAP_DATA_REPOSITORY } from './data/map-data.tokens';
-import { MapStateRevisionRecord, MapStateRevisionSummary } from './data/map-data.models';
-import { MapDataRepository } from './data/map-data.repository';
+import { MapStage, MapStateRevisionRecord, MapStateRevisionSummary } from './data/map-data.models';
+import { CreateRevisionOptions, MapDataRepository } from './data/map-data.repository';
 import { MapStateService } from './map-state.service';
 
 class InMemoryMapDataRepository implements MapDataRepository {
   private current = new Map<string, MapState>();
 
-  async loadCurrentState(mapId: string): Promise<MapState | null> {
+  async loadCurrentState(mapId: string, _stage?: MapStage): Promise<MapState | null> {
     return this.current.get(mapId) ?? null;
   }
 
-  async saveCurrentState(mapId: string, state: MapState): Promise<void> {
+  async saveCurrentState(mapId: string, state: MapState, _stage?: MapStage): Promise<void> {
     this.current.set(mapId, structuredClone(state));
   }
 
-  async createRevision(mapId: string, state: MapState, note?: string): Promise<MapStateRevisionSummary> {
+  async publishDraft(_mapId: string, _note?: string): Promise<boolean> {
+    return false;
+  }
+
+  async createRevision(
+    mapId: string,
+    state: MapState,
+    note?: string,
+    options?: CreateRevisionOptions,
+  ): Promise<MapStateRevisionSummary> {
     const revision: MapStateRevisionSummary = {
       id: `rev-${Date.now()}`,
       mapId,
+      stage: options?.stage ?? 'published',
       schemaVersion: state.schemaVersion,
       createdAt: new Date().toISOString(),
       note,
+      eventType: options?.eventType,
     };
 
     return revision;
   }
 
-  async listRevisions(_mapId: string): Promise<MapStateRevisionSummary[]> {
+  async listRevisions(_mapId: string, _stage?: MapStage): Promise<MapStateRevisionSummary[]> {
     return [];
   }
 
-  async loadRevision(_mapId: string, _revisionId: string): Promise<MapStateRevisionRecord | null> {
+  async loadRevision(_mapId: string, _revisionId: string, _stage?: MapStage): Promise<MapStateRevisionRecord | null> {
     return null;
   }
 }

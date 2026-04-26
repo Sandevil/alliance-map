@@ -1,6 +1,6 @@
 import { MapState } from '../../domain';
-import { MapDataRepository } from './map-data.repository';
-import { MapStateRevisionRecord, MapStateRevisionSummary } from './map-data.models';
+import { CreateRevisionOptions, MapDataRepository } from './map-data.repository';
+import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary } from './map-data.models';
 
 type CurrentStateRecord = {
   mapId: string;
@@ -9,6 +9,7 @@ type CurrentStateRecord = {
 };
 
 export class LocalMapDataRepository implements MapDataRepository {
+  private static readonly DEFAULT_STAGE: MapStage = 'published';
   private static readonly DB_NAME = 'alliance-map-db';
   private static readonly DB_VERSION = 1;
   private static readonly CURRENT_STORE = 'currentStates';
@@ -19,15 +20,16 @@ export class LocalMapDataRepository implements MapDataRepository {
 
   private databasePromise?: Promise<IDBDatabase | null>;
 
-  async loadCurrentState(mapId: string): Promise<MapState | null> {
+  async loadCurrentState(mapId: string, stage: MapStage = LocalMapDataRepository.DEFAULT_STAGE): Promise<MapState | null> {
+    const stateKey = this.composeCurrentStateKey(mapId, stage);
     const db = await this.getDatabase();
 
     if (db) {
-      const record = await this.getByKey<CurrentStateRecord>(db, LocalMapDataRepository.CURRENT_STORE, mapId);
+      const record = await this.getByKey<CurrentStateRecord>(db, LocalMapDataRepository.CURRENT_STORE, stateKey);
       return record?.state ?? null;
     }
 
-    const raw = this.safeLocalStorageGet(`${LocalMapDataRepository.LS_CURRENT_PREFIX}${mapId}`);
+    const raw = this.safeLocalStorageGet(`${LocalMapDataRepository.LS_CURRENT_PREFIX}${stateKey}`);
     if (!raw) {
       return null;
     }
@@ -39,10 +41,15 @@ export class LocalMapDataRepository implements MapDataRepository {
     }
   }
 
-  async saveCurrentState(mapId: string, state: MapState): Promise<void> {
+  async saveCurrentState(
+    mapId: string,
+    state: MapState,
+    stage: MapStage = LocalMapDataRepository.DEFAULT_STAGE,
+  ): Promise<void> {
+    const stateKey = this.composeCurrentStateKey(mapId, stage);
     const db = await this.getDatabase();
     const record: CurrentStateRecord = {
-      mapId,
+      mapId: stateKey,
       state,
       updatedAt: new Date().toISOString(),
     };
@@ -52,17 +59,41 @@ export class LocalMapDataRepository implements MapDataRepository {
       return;
     }
 
-    this.safeLocalStorageSet(`${LocalMapDataRepository.LS_CURRENT_PREFIX}${mapId}`, JSON.stringify(state));
+    this.safeLocalStorageSet(`${LocalMapDataRepository.LS_CURRENT_PREFIX}${stateKey}`, JSON.stringify(state));
   }
 
-  async createRevision(mapId: string, state: MapState, note?: string): Promise<MapStateRevisionSummary> {
+  async publishDraft(mapId: string, note?: string): Promise<boolean> {
+    const draftState = await this.loadCurrentState(mapId, 'draft');
+    if (!draftState) {
+      return false;
+    }
+
+    await this.saveCurrentState(mapId, draftState, 'published');
+    await this.createRevision(mapId, draftState, note, {
+      stage: 'published',
+      eventType: 'publish',
+    });
+    return true;
+  }
+
+  async createRevision(
+    mapId: string,
+    state: MapState,
+    note?: string,
+    options?: CreateRevisionOptions,
+  ): Promise<MapStateRevisionSummary> {
+    const stage = options?.stage ?? LocalMapDataRepository.DEFAULT_STAGE;
+    const eventType = options?.eventType;
+
     const now = new Date().toISOString();
     const revision: MapStateRevisionRecord = {
       id: `rev-${Date.now()}-${Math.round(Math.random() * 1000)}`,
       mapId,
+      stage,
       schemaVersion: state.schemaVersion,
       createdAt: now,
       note,
+      eventType,
       state,
     };
 
@@ -78,7 +109,7 @@ export class LocalMapDataRepository implements MapDataRepository {
     return this.toSummary(revision);
   }
 
-  async listRevisions(mapId: string): Promise<MapStateRevisionSummary[]> {
+  async listRevisions(mapId: string, stage: MapStage = LocalMapDataRepository.DEFAULT_STAGE): Promise<MapStateRevisionSummary[]> {
     const db = await this.getDatabase();
     if (db) {
       const records = await this.getAllByIndex<MapStateRevisionRecord>(
@@ -89,21 +120,28 @@ export class LocalMapDataRepository implements MapDataRepository {
       );
 
       return records
+        .filter((item) => this.normalizeStage(item.stage) === stage)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .map((item) => this.toSummary(item));
     }
 
-    return this.readLocalRevisions(mapId).map((item) => this.toSummary(item));
+    return this.readLocalRevisions(mapId)
+      .filter((item) => this.normalizeStage(item.stage) === stage)
+      .map((item) => this.toSummary(item));
   }
 
-  async loadRevision(mapId: string, revisionId: string): Promise<MapStateRevisionRecord | null> {
+  async loadRevision(
+    mapId: string,
+    revisionId: string,
+    stage: MapStage = LocalMapDataRepository.DEFAULT_STAGE,
+  ): Promise<MapStateRevisionRecord | null> {
     const db = await this.getDatabase();
     if (db) {
       const record = await this.getByKey<MapStateRevisionRecord>(db, LocalMapDataRepository.REVISIONS_STORE, revisionId);
-      return record?.mapId === mapId ? record : null;
+      return record?.mapId === mapId && this.normalizeStage(record.stage) === stage ? record : null;
     }
 
-    return this.readLocalRevisions(mapId).find((item) => item.id === revisionId) ?? null;
+    return this.readLocalRevisions(mapId).find((item) => item.id === revisionId && this.normalizeStage(item.stage) === stage) ?? null;
   }
 
   private async getDatabase(): Promise<IDBDatabase | null> {
@@ -195,10 +233,28 @@ export class LocalMapDataRepository implements MapDataRepository {
     return {
       id: revision.id,
       mapId: revision.mapId,
+      stage: this.normalizeStage(revision.stage),
       schemaVersion: revision.schemaVersion,
       createdAt: revision.createdAt,
       note: revision.note,
+      eventType: this.normalizeEventType(revision.eventType),
     };
+  }
+
+  private composeCurrentStateKey(mapId: string, stage: MapStage): string {
+    return `${mapId}::${stage}`;
+  }
+
+  private normalizeStage(stage: unknown): MapStage {
+    return stage === 'draft' || stage === 'published' ? stage : LocalMapDataRepository.DEFAULT_STAGE;
+  }
+
+  private normalizeEventType(eventType: unknown): MapRevisionEventType | undefined {
+    if (eventType === 'autosave' || eventType === 'publish' || eventType === 'restore') {
+      return eventType;
+    }
+
+    return undefined;
   }
 
   private safeLocalStorageGet(key: string): string | null {

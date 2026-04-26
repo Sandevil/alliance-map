@@ -1,10 +1,16 @@
 import { MapState } from '../../domain';
-import { MapStateRevisionRecord, MapStateRevisionSummary } from './map-data.models';
+import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary } from './map-data.models';
+
+export interface CreateRevisionOptions {
+  stage?: MapStage;
+  eventType?: MapRevisionEventType;
+}
 
 export interface MapDataRepository {
-  loadCurrentState(mapId: string): Promise<MapState | null>;
-  saveCurrentState(mapId: string, state: MapState): Promise<void>;
-  createRevision(mapId: string, state: MapState, note?: string): Promise<MapStateRevisionSummary>;
-  listRevisions(mapId: string): Promise<MapStateRevisionSummary[]>;
-  loadRevision(mapId: string, revisionId: string): Promise<MapStateRevisionRecord | null>;
+  loadCurrentState(mapId: string, stage?: MapStage): Promise<MapState | null>;
+  saveCurrentState(mapId: string, state: MapState, stage?: MapStage): Promise<void>;
+  publishDraft(mapId: string, note?: string): Promise<boolean>;
+  createRevision(mapId: string, state: MapState, note?: string, options?: CreateRevisionOptions): Promise<MapStateRevisionSummary>;
+  listRevisions(mapId: string, stage?: MapStage): Promise<MapStateRevisionSummary[]>;
+  loadRevision(mapId: string, revisionId: string, stage?: MapStage): Promise<MapStateRevisionRecord | null>;
 }

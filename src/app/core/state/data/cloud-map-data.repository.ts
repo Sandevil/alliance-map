@@ -1,10 +1,11 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { MapState } from '../../domain';
 import { resolveRuntimeEnv } from '../../config/runtime-env';
-import { MapDataRepository } from './map-data.repository';
-import { MapStateRevisionRecord, MapStateRevisionSummary } from './map-data.models';
+import { CreateRevisionOptions, MapDataRepository } from './map-data.repository';
+import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary } from './map-data.models';
 
 export class CloudMapDataRepository implements MapDataRepository {
+  private static readonly DEFAULT_STAGE: MapStage = 'published';
   private readonly supabase: SupabaseClient | null;
 
   constructor() {
@@ -24,27 +25,32 @@ export class CloudMapDataRepository implements MapDataRepository {
     });
   }
 
-  async loadCurrentState(mapId: string): Promise<MapState | null> {
+  async loadCurrentState(mapId: string, stage: MapStage = CloudMapDataRepository.DEFAULT_STAGE): Promise<MapState | null> {
     if (!this.supabase) {
       return null;
     }
 
-    const row = await this.findMapStateRow(mapId);
+    const row = await this.findMapStateRow(mapId, stage);
     return row?.state ?? null;
   }
 
-  async saveCurrentState(mapId: string, state: MapState): Promise<void> {
+  async saveCurrentState(
+    mapId: string,
+    state: MapState,
+    stage: MapStage = CloudMapDataRepository.DEFAULT_STAGE,
+  ): Promise<void> {
     if (!this.supabase) {
       return;
     }
 
-    const existing = await this.findMapStateRow(mapId);
+    const existing = await this.findMapStateRow(mapId, stage, false);
 
     if (existing) {
       const { error } = await this.supabase
         .from('map_states')
         .update({
           state,
+          stage,
           schema_version: state.schemaVersion,
         })
         .eq('id', existing.id);
@@ -57,6 +63,7 @@ export class CloudMapDataRepository implements MapDataRepository {
 
     const payload: Record<string, unknown> = {
       name: mapId,
+      stage,
       state,
       schema_version: state.schemaVersion,
     };
@@ -67,19 +74,48 @@ export class CloudMapDataRepository implements MapDataRepository {
     }
   }
 
-  async createRevision(mapId: string, state: MapState, note?: string): Promise<MapStateRevisionSummary> {
+  async publishDraft(mapId: string, note?: string): Promise<boolean> {
     if (!this.supabase) {
-      return this.createFallbackSummary(mapId, state, note);
+      return false;
     }
 
-    const mapStateId = await this.ensureMapStateId(mapId, state);
+    const draftRow = await this.findMapStateRow(mapId, 'draft', false);
+    if (!draftRow) {
+      return false;
+    }
+
+    await this.saveCurrentState(mapId, draftRow.state, 'published');
+    await this.createRevision(mapId, draftRow.state, note, {
+      stage: 'published',
+      eventType: 'publish',
+    });
+
+    return true;
+  }
+
+  async createRevision(
+    mapId: string,
+    state: MapState,
+    note?: string,
+    options?: CreateRevisionOptions,
+  ): Promise<MapStateRevisionSummary> {
+    const stage = options?.stage ?? CloudMapDataRepository.DEFAULT_STAGE;
+    const eventType = options?.eventType;
+
+    if (!this.supabase) {
+      return this.createFallbackSummary(mapId, state, note, stage, eventType);
+    }
+
+    const mapStateId = await this.ensureMapStateId(mapId, state, stage);
     if (!mapStateId) {
-      return this.createFallbackSummary(mapId, state, note);
+      return this.createFallbackSummary(mapId, state, note, stage, eventType);
     }
 
     const payload: Record<string, unknown> = {
       map_state_id: mapStateId,
       summary: note,
+      stage,
+      event_type: eventType,
       state,
       schema_version: state.schemaVersion,
     };
@@ -87,36 +123,38 @@ export class CloudMapDataRepository implements MapDataRepository {
     const { data, error } = await this.supabase
       .from('map_revisions')
       .insert(payload)
-      .select('id, schema_version, created_at, summary')
+      .select('id, schema_version, created_at, summary, stage, event_type')
       .single();
 
     if (error || !data) {
       console.error('[CloudMapDataRepository] Failed to create revision', error);
-      return this.createFallbackSummary(mapId, state, note);
+      return this.createFallbackSummary(mapId, state, note, stage, eventType);
     }
 
     return {
       id: data.id,
       mapId,
+      stage: this.normalizeStage(data.stage, stage),
       schemaVersion: Number(data.schema_version) || state.schemaVersion,
       createdAt: data.created_at,
       note: data.summary ?? undefined,
+      eventType: this.normalizeEventType(data.event_type),
     };
   }
 
-  async listRevisions(mapId: string): Promise<MapStateRevisionSummary[]> {
+  async listRevisions(mapId: string, stage: MapStage = CloudMapDataRepository.DEFAULT_STAGE): Promise<MapStateRevisionSummary[]> {
     if (!this.supabase) {
       return [];
     }
 
-    const mapStateRow = await this.findMapStateRow(mapId);
+    const mapStateRow = await this.findMapStateRow(mapId, stage, false);
     if (!mapStateRow) {
       return [];
     }
 
     const { data, error } = await this.supabase
       .from('map_revisions')
-      .select('id, schema_version, created_at, summary')
+      .select('id, schema_version, created_at, summary, stage, event_type')
       .eq('map_state_id', mapStateRow.id)
       .order('created_at', { ascending: false });
 
@@ -128,25 +166,31 @@ export class CloudMapDataRepository implements MapDataRepository {
     return data.map((item) => ({
       id: item.id,
       mapId,
+      stage: this.normalizeStage(item.stage, stage),
       schemaVersion: Number(item.schema_version) || 1,
       createdAt: item.created_at,
       note: item.summary ?? undefined,
+      eventType: this.normalizeEventType(item.event_type),
     }));
   }
 
-  async loadRevision(mapId: string, revisionId: string): Promise<MapStateRevisionRecord | null> {
+  async loadRevision(
+    mapId: string,
+    revisionId: string,
+    stage: MapStage = CloudMapDataRepository.DEFAULT_STAGE,
+  ): Promise<MapStateRevisionRecord | null> {
     if (!this.supabase) {
       return null;
     }
 
-    const mapStateRow = await this.findMapStateRow(mapId);
+    const mapStateRow = await this.findMapStateRow(mapId, stage, false);
     if (!mapStateRow) {
       return null;
     }
 
     const { data, error } = await this.supabase
       .from('map_revisions')
-      .select('id, schema_version, created_at, summary, state')
+      .select('id, schema_version, created_at, summary, stage, event_type, state')
       .eq('id', revisionId)
       .eq('map_state_id', mapStateRow.id)
       .maybeSingle();
@@ -161,22 +205,29 @@ export class CloudMapDataRepository implements MapDataRepository {
     return {
       id: data.id,
       mapId,
+      stage: this.normalizeStage(data.stage, stage),
       schemaVersion: Number(data.schema_version) || 1,
       createdAt: data.created_at,
       note: data.summary ?? undefined,
+      eventType: this.normalizeEventType(data.event_type),
       state: data.state as MapState,
     };
   }
 
-  private async findMapStateRow(mapId: string): Promise<{ id: string; state: MapState } | null> {
+  private async findMapStateRow(
+    mapId: string,
+    stage: MapStage = CloudMapDataRepository.DEFAULT_STAGE,
+    allowGlobalPublishedFallback = stage === 'published',
+  ): Promise<{ id: string; state: MapState; stage: MapStage } | null> {
     if (!this.supabase) {
       return null;
     }
 
     const { data, error } = await this.supabase
       .from('map_states')
-      .select('id, state, updated_at')
+      .select('id, state, updated_at, stage')
       .eq('name', mapId)
+      .eq('stage', stage)
       .order('updated_at', { ascending: false })
       .limit(1);
 
@@ -187,10 +238,27 @@ export class CloudMapDataRepository implements MapDataRepository {
 
     let row = data?.[0];
 
-    if (!row) {
+    if (!row && stage === 'published') {
+      const { data: legacyByNameData, error: legacyByNameError } = await this.supabase
+        .from('map_states')
+        .select('id, state, updated_at, stage')
+        .eq('name', mapId)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (legacyByNameError) {
+        console.error('[CloudMapDataRepository] Failed legacy by-name lookup for map state row', legacyByNameError);
+        return null;
+      }
+
+      row = legacyByNameData?.[0];
+    }
+
+    if (!row && allowGlobalPublishedFallback) {
       const { data: fallbackData, error: fallbackError } = await this.supabase
         .from('map_states')
-        .select('id, state, updated_at')
+        .select('id, state, updated_at, stage')
+        .eq('stage', 'published')
         .order('updated_at', { ascending: false })
         .limit(1);
 
@@ -202,6 +270,21 @@ export class CloudMapDataRepository implements MapDataRepository {
       row = fallbackData?.[0];
     }
 
+    if (!row && allowGlobalPublishedFallback) {
+      const { data: finalFallbackData, error: finalFallbackError } = await this.supabase
+        .from('map_states')
+        .select('id, state, updated_at, stage')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (finalFallbackError) {
+        console.error('[CloudMapDataRepository] Failed final fallback lookup for map state row', finalFallbackError);
+        return null;
+      }
+
+      row = finalFallbackData?.[0];
+    }
+
     if (!row) {
       return null;
     }
@@ -209,13 +292,14 @@ export class CloudMapDataRepository implements MapDataRepository {
     return {
       id: row.id,
       state: row.state as MapState,
+      stage: this.normalizeStage(row.stage, stage),
     };
   }
 
-  private async ensureMapStateId(mapId: string, state: MapState): Promise<string | null> {
-    const existing = await this.findMapStateRow(mapId);
+  private async ensureMapStateId(mapId: string, state: MapState, stage: MapStage): Promise<string | null> {
+    const existing = await this.findMapStateRow(mapId, stage, false);
     if (existing) {
-      await this.saveCurrentState(mapId, state);
+      await this.saveCurrentState(mapId, state, stage);
       return existing.id;
     }
 
@@ -225,6 +309,7 @@ export class CloudMapDataRepository implements MapDataRepository {
 
     const payload: Record<string, unknown> = {
       name: mapId,
+      stage,
       state,
       schema_version: state.schemaVersion,
     };
@@ -243,14 +328,34 @@ export class CloudMapDataRepository implements MapDataRepository {
     return data.id;
   }
 
-  private createFallbackSummary(mapId: string, state: MapState, note?: string): MapStateRevisionSummary {
+  private createFallbackSummary(
+    mapId: string,
+    state: MapState,
+    note: string | undefined,
+    stage: MapStage,
+    eventType?: MapRevisionEventType,
+  ): MapStateRevisionSummary {
     return {
       id: `cloud-fallback-${Date.now()}`,
       mapId,
+      stage,
       schemaVersion: state.schemaVersion,
       createdAt: new Date().toISOString(),
       note,
+      eventType,
     };
+  }
+
+  private normalizeStage(stage: unknown, fallback: MapStage): MapStage {
+    return stage === 'draft' || stage === 'published' ? stage : fallback;
+  }
+
+  private normalizeEventType(eventType: unknown): MapRevisionEventType | undefined {
+    if (eventType === 'autosave' || eventType === 'publish' || eventType === 'restore') {
+      return eventType;
+    }
+
+    return undefined;
   }
 
 }
