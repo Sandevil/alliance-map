@@ -31,7 +31,20 @@ export class CloudMapDataRepository implements MapDataRepository {
     }
 
     const row = await this.findMapStateRow(mapId, stage);
-    return row?.state ?? null;
+    if (!row) {
+      return null;
+    }
+
+    if (row.stage !== stage) {
+      console.warn('[CloudMapDataRepository] Ignoring map state row with unexpected stage', {
+        mapId,
+        requestedStage: stage,
+        rowStage: row.stage,
+      });
+      return null;
+    }
+
+    return row.state;
   }
 
   async saveCurrentState(
@@ -223,6 +236,8 @@ export class CloudMapDataRepository implements MapDataRepository {
       return null;
     }
 
+    type MapStateQueryRow = { id: string; state: unknown; updated_at: string; stage: unknown };
+
     const { data, error } = await this.supabase
       .from('map_states')
       .select('id, state, updated_at, stage')
@@ -236,7 +251,7 @@ export class CloudMapDataRepository implements MapDataRepository {
       return null;
     }
 
-    let row = data?.[0];
+    let row: MapStateQueryRow | null = (data?.[0] as MapStateQueryRow | undefined) ?? null;
 
     if (!row && stage === 'published') {
       const { data: legacyByNameData, error: legacyByNameError } = await this.supabase
@@ -244,14 +259,19 @@ export class CloudMapDataRepository implements MapDataRepository {
         .select('id, state, updated_at, stage')
         .eq('name', mapId)
         .order('updated_at', { ascending: false })
-        .limit(1);
+        .limit(10);
 
       if (legacyByNameError) {
         console.error('[CloudMapDataRepository] Failed legacy by-name lookup for map state row', legacyByNameError);
         return null;
       }
 
-      row = legacyByNameData?.[0];
+      row =
+        (legacyByNameData as MapStateQueryRow[] | null | undefined)?.find((candidate) =>
+          this.matchesRequestedStage(candidate?.stage, stage, {
+            allowLegacyPublishedStage: true,
+          }),
+        ) ?? null;
     }
 
     if (!row && allowGlobalPublishedFallback) {
@@ -267,7 +287,7 @@ export class CloudMapDataRepository implements MapDataRepository {
         return null;
       }
 
-      row = fallbackData?.[0];
+      row = ((fallbackData as MapStateQueryRow[] | null | undefined)?.[0] as MapStateQueryRow | undefined) ?? null;
     }
 
     if (!row && allowGlobalPublishedFallback) {
@@ -275,17 +295,22 @@ export class CloudMapDataRepository implements MapDataRepository {
         .from('map_states')
         .select('id, state, updated_at, stage')
         .order('updated_at', { ascending: false })
-        .limit(1);
+        .limit(25);
 
       if (finalFallbackError) {
         console.error('[CloudMapDataRepository] Failed final fallback lookup for map state row', finalFallbackError);
         return null;
       }
 
-      row = finalFallbackData?.[0];
+      row =
+        (finalFallbackData as MapStateQueryRow[] | null | undefined)?.find((candidate) =>
+          this.matchesRequestedStage(candidate?.stage, stage, {
+            allowLegacyPublishedStage: true,
+          }),
+        ) ?? null;
     }
 
-    if (!row) {
+    if (!row || !this.matchesRequestedStage(row.stage, stage, { allowLegacyPublishedStage: true })) {
       return null;
     }
 
@@ -294,6 +319,22 @@ export class CloudMapDataRepository implements MapDataRepository {
       state: row.state as MapState,
       stage: this.normalizeStage(row.stage, stage),
     };
+  }
+
+  private matchesRequestedStage(
+    rowStage: unknown,
+    requestedStage: MapStage,
+    options?: { allowLegacyPublishedStage?: boolean },
+  ): boolean {
+    if (requestedStage === 'draft') {
+      return rowStage === 'draft';
+    }
+
+    if (rowStage === 'published') {
+      return true;
+    }
+
+    return !!options?.allowLegacyPublishedStage && (rowStage === null || rowStage === undefined || rowStage === '');
   }
 
   private async ensureMapStateId(mapId: string, state: MapState, stage: MapStage): Promise<string | null> {

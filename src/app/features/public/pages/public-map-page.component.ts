@@ -14,7 +14,7 @@ import { MapLegendComponent } from '../../../shared/components/map-legend/map-le
   templateUrl: './public-map-page.component.html',
   styleUrl: './public-map-page.component.scss',
 })
-export class PublicMapPageComponent {
+export class PublicMapPageComponent implements OnInit, OnDestroy {
   protected readonly facade = inject(MapViewFacade);
 
   ngOnInit(): void {

@@ -3,11 +3,9 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { createInitialMapState } from '../domain';
 import { MAP_DATA_REPOSITORY } from '../state/data/map-data.tokens';
 import { MapDataRepository } from '../state/data/map-data.repository';
-import { MapStateService } from '../state/map-state.service';
 
 @Injectable({ providedIn: 'root' })
 export class MapViewFacade {
-  private readonly mapStateService = inject(MapStateService);
   private readonly dataRepository = inject(MAP_DATA_REPOSITORY) as MapDataRepository;
 
   private readonly stateSignal = signal(createInitialMapState());
