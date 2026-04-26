@@ -1,0 +1,12 @@
+{
+  "app": {
+    "title": "CRU Territory Planner",
+    "subtitle": "Plan your oblique grid map and prepare player assignments."
+  },
+  "mapEditor": {
+    "placeholder": {
+      "title": "Map editor bootstrap ready",
+      "description": "Next phase will add the oblique grid, placements, drag & drop and validation rules."
+    }
+  }
+}

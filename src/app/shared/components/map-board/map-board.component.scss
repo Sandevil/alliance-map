@@ -1,0 +1,96 @@
+:host {
+  display: block;
+  min-height: 0;
+}
+
+.board {
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.8);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.board__meta {
+  padding: 10px 12px;
+  border-bottom: 1px solid #334155;
+}
+
+.board__meta p {
+  margin: 0;
+}
+
+.board__viewport {
+  position: relative;
+  overflow: auto;
+  padding: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.panzoom-host {
+  width: fit-content;
+  transform-origin: top left;
+}
+
+.grid {
+  --cell-size: 24px;
+  position: relative;
+  width: fit-content;
+  transform: skew(-24deg);
+  transform-origin: top left;
+}
+
+.grid__cells {
+  display: grid;
+  grid-template-columns: repeat(var(--grid-width), var(--cell-size));
+  grid-template-rows: repeat(var(--grid-height), var(--cell-size));
+  gap: 1px;
+}
+
+.grid__cell {
+  border: 1px solid #334155;
+  background: rgba(30, 41, 59, 0.45);
+  padding: 0;
+}
+
+.grid__tile {
+  position: absolute;
+  box-sizing: border-box;
+  left: calc((var(--origin-x) - 1) * (var(--cell-size) + 1px));
+  top: calc((var(--origin-y) - 1) * (var(--cell-size) + 1px));
+  width: calc(var(--tile-w) * var(--cell-size) + (var(--tile-w) - 1) * 1px);
+  height: calc(var(--tile-h) * var(--cell-size) + (var(--tile-h) - 1) * 1px);
+  border: 1px solid #0b1220;
+  border-radius: 6px;
+  color: #0b1220;
+  padding: 2px;
+  font-size: 0.62rem;
+  overflow: hidden;
+}
+
+.grid__tile--highlight {
+  box-shadow: 0 0 0 2px #f8fafc;
+}
+
+.grid__tile--city {
+  background: rgba(234, 179, 8, 0.85);
+}
+
+.grid__tile--banner {
+  background: rgba(99, 102, 241, 0.82);
+}
+
+.grid__tile--allianceResource {
+  background: rgba(16, 185, 129, 0.82);
+}
+
+.grid__tile--bearTrap1,
+.grid__tile--bearTrap2 {
+  background: rgba(14, 165, 233, 0.75);
+}
+
+.grid__tile--fortress {
+  background: rgba(168, 85, 247, 0.85);
+}

@@ -1,0 +1,61 @@
+<main class="public-page">
+  <header class="public-page__header">
+    <div>
+      <h1>CRU Territory Planner</h1>
+      <p>Public view mode (read-only)</p>
+    </div>
+
+    <div class="public-page__header-actions">
+      <button type="button" class="public-page__admin-link" (click)="togglePresentationMode()">
+        {{ isPresentationMode() ? 'Exit presentation' : 'Presentation mode' }}
+      </button>
+      <a routerLink="/admin/login" class="public-page__admin-link">Admin access</a>
+    </div>
+  </header>
+
+  <section class="public-page__content" [class.public-page__content--presentation]="isPresentationMode()">
+    @if (!isPresentationMode()) {
+    <aside class="public-search">
+      <h2>City search</h2>
+      <input
+        type="text"
+        [ngModel]="query()"
+        (ngModelChange)="onQueryChange($event)"
+        placeholder="Search city by player name" />
+      <button type="button" class="public-search__clear" (click)="clearSearch()">Clear search</button>
+
+      @if (query().trim().length === 0) {
+        <p class="public-search__hint">Type part of a player name to find cities.</p>
+      } @else {
+        <ul class="public-search__results">
+          @for (item of cityResults(); track item.playerId) {
+            <li>
+              <button
+                type="button"
+                (click)="selectCity(item.playerId)"
+                [class.public-search__result--active]="selectedPlayerId() === item.playerId">
+                <strong>{{ item.playerName }}</strong>
+                <small>
+                  Power: {{ item.playerPower | number }} · Internal: {{ item.origin.x }}/{{ item.origin.y }} · External:
+                  {{ getExternalCoordsLabel(item.origin.x, item.origin.y) }}
+                </small>
+              </button>
+            </li>
+          } @empty {
+            <li class="public-search__empty">No matching cities.</li>
+          }
+        </ul>
+      }
+    </aside>
+    }
+
+    <div class="public-page__board-wrap">
+      <app-map-board [state]="state()" [highlightPlayerId]="selectedPlayerId()" />
+      @if (!isPresentationMode()) {
+        <div class="public-page__legend-floating">
+          <app-map-legend />
+        </div>
+      }
+    </div>
+  </section>
+</main>

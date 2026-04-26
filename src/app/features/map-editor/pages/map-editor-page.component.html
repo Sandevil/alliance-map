@@ -1,0 +1,315 @@
+<main class="page">
+  <header class="page__header">
+    <h1>{{ 'app.title' | transloco }}</h1>
+    <p>{{ 'app.subtitle' | transloco }}</p>
+    <div class="page__toolbar">
+      <button class="toolbar-btn" type="button" (click)="toggleSidebar()" [attr.aria-expanded]="isSidebarOpen()">
+        <span class="material-symbols-outlined">menu</span>
+        <span>Tools</span>
+      </button>
+      <div class="page__toolbar-right">
+        <button class="toolbar-btn" type="button" (click)="zoomIn()" aria-label="Zoom in">
+          <span class="material-symbols-outlined">zoom_in</span>
+        </button>
+        <button class="toolbar-btn" type="button" (click)="zoomOut()" aria-label="Zoom out">
+          <span class="material-symbols-outlined">zoom_out</span>
+        </button>
+        <button class="toolbar-btn" type="button" (click)="resetZoom()">
+          <span class="material-symbols-outlined">center_focus_strong</span>
+          <span>Reset view</span>
+        </button>
+        <button class="toolbar-btn" type="button" (click)="fitZoom()">
+          <span class="material-symbols-outlined">fit_screen</span>
+          <span>Fit</span>
+        </button>
+        <button class="toolbar-btn" type="button" (click)="logoutAdmin()">
+          <span class="material-symbols-outlined">logout</span>
+          <span>Exit admin</span>
+        </button>
+
+        <div class="settings-menu-wrap">
+          <button
+            class="toolbar-btn"
+            type="button"
+            (click)="toggleSettingsMenu()"
+            [attr.aria-expanded]="isSettingsMenuOpen()"
+            aria-label="Open settings">
+            <span class="material-symbols-outlined">settings</span>
+          </button>
+
+          @if (isSettingsMenuOpen()) {
+            <div class="settings-menu" role="menu" aria-label="Settings menu">
+              <button type="button" role="menuitem" (click)="openExternalReferenceDialogFromSettings()">
+                <span class="material-symbols-outlined">pin_drop</span>
+                <span>External coordinates base</span>
+              </button>
+              <button type="button" role="menuitem" (click)="openResizeDialogFromSettings()">
+                <span class="material-symbols-outlined">straighten</span>
+                <span>Resize grid</span>
+              </button>
+              <button type="button" role="menuitem" (click)="exportConfigFromSettings()">
+                <span class="material-symbols-outlined">upload_file</span>
+                <span>Export JSON</span>
+              </button>
+              <button type="button" role="menuitem" (click)="openImportConfigDialogFromSettings()">
+                <span class="material-symbols-outlined">download</span>
+                <span>Import JSON</span>
+              </button>
+              <button type="button" role="menuitem" (click)="openImportPlayersDialogFromSettings()">
+                <span class="material-symbols-outlined">group_add</span>
+                <span>Import Players</span>
+              </button>
+              <button type="button" role="menuitem" (click)="exportMapPngFromSettings()">
+                <span class="material-symbols-outlined">image</span>
+                <span>Export PNG</span>
+              </button>
+              <button type="button" role="menuitem" (click)="resetMapStateFromSettings()">
+                <span class="material-symbols-outlined">restart_alt</span>
+                <span>Reset map</span>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+
+      @if (isSettingsMenuOpen()) {
+        <button class="settings-backdrop" type="button" (click)="closeSettingsMenu()" aria-label="Close settings menu"></button>
+      }
+
+      <input
+        #configFileInput
+        type="file"
+        accept="application/json,.json"
+        hidden
+        (change)="onImportConfigSelected($event)" />
+      <input
+        #playersFileInput
+        type="file"
+        accept="application/json,.json,text/csv,.csv"
+        hidden
+        (change)="onImportPlayersSelected($event)" />
+    </div>
+  </header>
+
+  @if (isSidebarOpen()) {
+    <button class="sidebar-backdrop" type="button" (click)="closeSidebar()" aria-label="Close sidebar"></button>
+  }
+
+  <section class="editor" cdkDropListGroup>
+    <aside class="editor__sidebar" [class.editor__sidebar--open]="isSidebarOpen()">
+      <div class="editor__sidebar-header">
+        <strong>Tools</strong>
+        <button type="button" (click)="closeSidebar()" aria-label="Close sidebar">×</button>
+      </div>
+
+      <section class="panel">
+        <button type="button" class="panel__toggle" (click)="toggleTileCatalog()" [attr.aria-expanded]="isTileCatalogOpen()">
+          <span>Tile Catalog</span>
+          <span class="panel__toggle-icon" [class.panel__toggle-icon--open]="isTileCatalogOpen()">▾</span>
+        </button>
+        @if (isTileCatalogOpen()) {
+          <div class="tile-catalog" cdkDropList id="tile-catalog-drop" [cdkDropListSortingDisabled]="true">
+            @for (tile of tileCatalog; track tile) {
+              <article class="tile-card" cdkDrag [cdkDragData]="getTileDragData(tile)">
+                <strong>{{ getTileLabel(tile) }}</strong>
+                <small>{{ TILE_RULES[tile].size.w }}x{{ TILE_RULES[tile].size.h }}</small>
+              </article>
+            }
+          </div>
+        }
+      </section>
+
+      <section class="panel">
+        <div class="panel__header-actions">
+          <h2>Players</h2>
+          <button type="button" class="panel__add" (click)="openAddPlayerDialog()" aria-label="Add player">+</button>
+        </div>
+        <div class="player-lists">
+          @for (listKey of playerLists; track listKey) {
+            <article
+              class="player-list"
+              [ngClass]="{ 'player-list--main': isMainList(listKey) }"
+              cdkDropList
+              [id]="listKey"
+              [cdkDropListConnectedTo]="connectedDropLists"
+              (cdkDropListDropped)="onPlayerListDrop($event)">
+              <header>
+                <h3>{{ getListTitle(listKey) }}</h3>
+                <span>{{ getPlayersByList(listKey).length }}</span>
+              </header>
+
+              <div class="player-list__items">
+                @for (player of getPlayersByList(listKey); track trackById) {
+                  <div class="player-item" cdkDrag [cdkDragData]="getPlayerDragData(player.id, listKey)">
+                    <div class="player-item__info">
+                      <strong>{{ player.name }}</strong>
+                      <small>{{ player.power | number }}</small>
+                    </div>
+                    <div class="player-item__actions" (mousedown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
+                      <button type="button" (click)="openEditPlayerDialog(player)" aria-label="Edit player">✎</button>
+                      <button type="button" (click)="removePlayer(player.id)" aria-label="Remove player">×</button>
+                    </div>
+                  </div>
+                } @empty {
+                  <p class="empty">Drop players here</p>
+                }
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+
+    </aside>
+
+    <section class="editor__board" [class.editor__board--with-sidebar]="isSidebarOpen()">
+      <div class="board-meta">
+        @if (hoveredCell(); as cell) {
+          <p>Internal: {{ cell.x }}/{{ cell.y }} · External: {{ getExternalCoordsLabel(cell.x, cell.y) }}</p>
+        } @else {
+          <p>Hover a cell to see coordinates</p>
+        }
+
+        @if (feedback(); as message) {
+          <p class="feedback">{{ message }}</p>
+        }
+      </div>
+
+      <div class="board-viewport" #boardViewport (contextmenu)="$event.preventDefault()">
+        <div #panzoomHost class="panzoom-host">
+          <div
+            #gridElement
+            class="grid"
+            [ngStyle]="gridStyle()"
+            cdkDropList
+            id="map-grid-drop"
+            [cdkDropListConnectedTo]="connectedDropLists"
+            [cdkDropListSortingDisabled]="true"
+            (cdkDropListDropped)="onMapDrop($event)">
+            <div class="grid__cells">
+              @for (cell of gridCells(); track trackByCell) {
+                <button
+                  class="grid__cell"
+                  [class.grid__cell--active]="isHoveredCell(cell.x, cell.y)"
+                  type="button"
+                  [attr.data-x]="cell.x"
+                  [attr.data-y]="cell.y"
+                  (mouseenter)="setHoveredCell(cell.x, cell.y)"
+                  (mouseleave)="clearHoveredCell()"
+                  (focus)="setHoveredCell(cell.x, cell.y)">
+                </button>
+              }
+            </div>
+
+            @for (placement of state().placements; track trackById) {
+              <article
+                class="grid__tile panzoom-exclude"
+                cdkDrag
+                [cdkDragData]="getPlacementDragData(placement.id)"
+                [cdkDragBoundary]="'.board-viewport'"
+                (cdkDragMoved)="onPlacementDragMoved($event)"
+                [ngClass]="[
+                  'grid__tile--' + placement.type,
+                  placement.type === 'allianceResource' ? 'grid__tile--resource-vertical' : '',
+                  getCityTrapClass(placement) ?? ''
+                ]"
+                [ngStyle]="getPlacementStyle(placement)">
+                @if (placement.type === 'city' && placement.playerId) {
+                  <strong>{{ getPlayerNameById(placement.playerId) }}</strong>
+                  <small>{{ getPlayerPowerById(placement.playerId) | number }}</small>
+                } @else {
+                  <strong>{{ getTileLabel(placement.type) }}</strong>
+                }
+                <button type="button" class="grid__tile-remove panzoom-exclude" (click)="removePlacement(placement.id)">×</button>
+              </article>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="editor__legend-floating">
+        <app-map-legend />
+      </div>
+    </section>
+  </section>
+
+  @if (isAddPlayerDialogOpen()) {
+    <div class="dialog-backdrop" (click)="closeAddPlayerDialog()"></div>
+    <section class="dialog" role="dialog" aria-modal="true" aria-label="Add player dialog">
+      <header class="dialog__header">
+        <h2>{{ editingPlayerId() ? 'Edit Player' : 'Add Player' }}</h2>
+        <button type="button" (click)="closeAddPlayerDialog()" aria-label="Close add player dialog">×</button>
+      </header>
+
+      <form class="player-form" (ngSubmit)="addPlayer()">
+        <input type="text" name="name" [(ngModel)]="playerName" placeholder="Player name" />
+        <input type="number" name="power" [(ngModel)]="playerPower" min="0" placeholder="Power" />
+        <select name="targetGeneralList" [(ngModel)]="playerTargetGeneralList">
+          <option value="trap1General">Trap 1 General</option>
+          <option value="trap2General">Trap 2 General</option>
+        </select>
+        <button type="submit">{{ editingPlayerId() ? 'Save changes' : 'Add player' }}</button>
+      </form>
+    </section>
+  }
+
+  @if (isResizeDialogOpen()) {
+    <div class="dialog-backdrop" (click)="closeResizeDialog()"></div>
+    <section class="dialog" role="dialog" aria-modal="true" aria-label="Resize grid dialog">
+      <header class="dialog__header">
+        <h2>Resize Grid</h2>
+        <button type="button" (click)="closeResizeDialog()" aria-label="Close resize grid dialog">×</button>
+      </header>
+
+      <form class="player-form" (ngSubmit)="applyGridResizeFromDialog()">
+        <label>
+          Width
+          <input type="number" name="resizeWidth" [(ngModel)]="resizeWidth" [min]="GRID_MIN_SIZE" />
+        </label>
+        <label>
+          Height
+          <input type="number" name="resizeHeight" [(ngModel)]="resizeHeight" [min]="GRID_MIN_SIZE" />
+        </label>
+        <label>
+          Anchor
+          <select name="resizeAnchor" [(ngModel)]="resizeAnchor">
+            <option value="top-left">Top Left</option>
+            <option value="top-right">Top Right</option>
+            <option value="bottom-left">Bottom Left</option>
+            <option value="bottom-right">Bottom Right</option>
+          </select>
+        </label>
+        <button type="submit">Apply Resize</button>
+      </form>
+    </section>
+  }
+
+  @if (isExternalReferenceDialogOpen()) {
+    <div class="dialog-backdrop" (click)="closeExternalReferenceDialog()"></div>
+    <section class="dialog" role="dialog" aria-modal="true" aria-label="External coordinates base dialog">
+      <header class="dialog__header">
+        <h2>External Coordinates Base</h2>
+        <button type="button" (click)="closeExternalReferenceDialog()" aria-label="Close external coordinates base dialog">×</button>
+      </header>
+
+      <form class="player-form" (ngSubmit)="applyExternalReferenceFromDialog()">
+        <label>
+          Internal X
+          <input type="number" name="externalAnchorInternalX" [(ngModel)]="externalAnchorInternalX" />
+        </label>
+        <label>
+          Internal Y
+          <input type="number" name="externalAnchorInternalY" [(ngModel)]="externalAnchorInternalY" />
+        </label>
+        <label>
+          External X
+          <input type="number" name="externalAnchorExternalX" [(ngModel)]="externalAnchorExternalX" />
+        </label>
+        <label>
+          External Y
+          <input type="number" name="externalAnchorExternalY" [(ngModel)]="externalAnchorExternalY" />
+        </label>
+        <button type="submit">Apply Reference</button>
+      </form>
+    </section>
+  }
+</main>

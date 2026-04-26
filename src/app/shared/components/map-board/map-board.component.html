@@ -1,0 +1,39 @@
+<section class="board">
+  <div class="board__meta">
+    @if (hoveredCell; as cell) {
+      <p>Internal: {{ cell.x }}/{{ cell.y }} · External: {{ getExternalCoordsLabel(cell.x, cell.y) }}</p>
+    } @else {
+      <p>Hover a cell to see coordinates</p>
+    }
+  </div>
+
+  <div class="board__viewport" #boardViewport>
+    <div #panzoomHost class="panzoom-host">
+      <div #gridElement class="grid" [ngStyle]="gridStyle">
+        <div class="grid__cells">
+          @for (cell of gridCells; track $index) {
+            <button
+              class="grid__cell"
+              type="button"
+              [attr.data-x]="cell.x"
+              [attr.data-y]="cell.y"
+              (mouseenter)="setHoveredCell(cell.x, cell.y)"
+              (mouseleave)="clearHoveredCell()"
+              (focus)="setHoveredCell(cell.x, cell.y)">
+            </button>
+          }
+        </div>
+
+        @for (placement of state.placements; track placement.id) {
+          <article
+            class="grid__tile"
+            [class.grid__tile--highlight]="isPlacementHighlighted(placement)"
+            [ngClass]="'grid__tile--' + placement.type"
+            [ngStyle]="getPlacementStyle(placement)">
+            <strong>{{ getTileLabel(placement) }}</strong>
+          </article>
+        }
+      </div>
+    </div>
+  </div>
+</section>
