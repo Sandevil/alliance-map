@@ -10,7 +10,7 @@ export class MapViewFacade {
   private readonly mapStateService = inject(MapStateService);
   private readonly dataRepository = inject(MAP_DATA_REPOSITORY) as MapDataRepository;
 
-  private readonly stateSignal = signal(this.mapStateService.snapshot ?? createInitialMapState());
+  private readonly stateSignal = signal(createInitialMapState());
 
   readonly query = signal('');
   readonly selectedPlayerId = signal<string | null>(null);
@@ -57,7 +57,12 @@ export class MapViewFacade {
 
   async reloadPublishedState(): Promise<void> {
     const publishedState = await this.dataRepository.loadCurrentState('default', 'published');
-    this.stateSignal.set(publishedState ?? this.mapStateService.snapshot);
+    this.stateSignal.set(publishedState ?? createInitialMapState());
+  }
+
+  resetUiState(): void {
+    this.query.set('');
+    this.selectedPlayerId.set(null);
   }
 
   private getAllPlayers() {

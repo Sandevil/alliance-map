@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -16,6 +16,14 @@ import { MapLegendComponent } from '../../../shared/components/map-legend/map-le
 })
 export class PublicMapPageComponent {
   protected readonly facade = inject(MapViewFacade);
+
+  ngOnInit(): void {
+    void this.facade.reloadPublishedState();
+  }
+
+  ngOnDestroy(): void {
+    this.facade.resetUiState();
+  }
 
   readonly state = computed(() => this.facade.state());
   readonly query = computed(() => this.facade.query());
