@@ -1,20 +1,25 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 
+import { createInitialMapState } from '../domain';
+import { MAP_DATA_REPOSITORY } from '../state/data/map-data.tokens';
+import { MapDataRepository } from '../state/data/map-data.repository';
 import { MapStateService } from '../state/map-state.service';
 
 @Injectable({ providedIn: 'root' })
 export class MapViewFacade {
   private readonly mapStateService = inject(MapStateService);
+  private readonly dataRepository = inject(MAP_DATA_REPOSITORY) as MapDataRepository;
 
-  private readonly stateSignal = toSignal(this.mapStateService.state$, {
-    initialValue: this.mapStateService.snapshot,
-  });
+  private readonly stateSignal = signal(this.mapStateService.snapshot ?? createInitialMapState());
 
   readonly query = signal('');
   readonly selectedPlayerId = signal<string | null>(null);
 
   readonly state = computed(() => this.stateSignal());
+
+  constructor() {
+    void this.reloadPublishedState();
+  }
 
   readonly cityResults = computed(() => {
     const query = this.query().trim().toLowerCase();
@@ -48,6 +53,11 @@ export class MapViewFacade {
 
   selectPlayer(playerId: string): void {
     this.selectedPlayerId.set(playerId);
+  }
+
+  async reloadPublishedState(): Promise<void> {
+    const publishedState = await this.dataRepository.loadCurrentState('default', 'published');
+    this.stateSignal.set(publishedState ?? this.mapStateService.snapshot);
   }
 
   private getAllPlayers() {

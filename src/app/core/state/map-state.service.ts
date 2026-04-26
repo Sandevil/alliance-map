@@ -27,6 +27,7 @@ import { MapDataRepository } from './data/map-data.repository';
 export class MapStateService {
   private static readonly LEGACY_STORAGE_KEY = 'alliance-map.state.v1';
   private static readonly DEFAULT_MAP_ID = 'default';
+  private static readonly EDIT_STAGE = 'draft' as const;
 
   private readonly dataRepository = inject(MAP_DATA_REPOSITORY) as MapDataRepository;
 
@@ -48,7 +49,7 @@ export class MapStateService {
         return;
       }
 
-      void this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state);
+      void this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state, MapStateService.EDIT_STAGE);
     });
   }
 
@@ -418,8 +419,11 @@ export class MapStateService {
   }
 
   private async hydrateFromRepository(): Promise<void> {
-    const repositoryState = await this.dataRepository.loadCurrentState(MapStateService.DEFAULT_MAP_ID);
-    const sourceState = repositoryState ?? this.hydrateFromLegacyStorage();
+    const draftState = await this.dataRepository.loadCurrentState(MapStateService.DEFAULT_MAP_ID, 'draft');
+    const publishedState = draftState
+      ? null
+      : await this.dataRepository.loadCurrentState(MapStateService.DEFAULT_MAP_ID, 'published');
+    const sourceState = draftState ?? publishedState ?? this.hydrateFromLegacyStorage();
 
     if (!sourceState) {
       return;
@@ -432,8 +436,8 @@ export class MapStateService {
 
     this.stateSubject.next(validation.state);
 
-    if (!repositoryState) {
-      await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, validation.state);
+    if (!draftState) {
+      await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, validation.state, 'draft');
     }
   }
 
