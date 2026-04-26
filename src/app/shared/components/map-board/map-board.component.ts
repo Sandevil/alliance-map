@@ -27,6 +27,12 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
 
   private panzoom?: PanzoomObject;
   private centerTimeoutId?: number;
+  private readonly visualViewport = typeof window !== 'undefined' ? window.visualViewport : null;
+  private readonly visualViewportHandler = () => {
+    if (this.highlightPlayerId) {
+      this.centerOnPlayer(this.highlightPlayerId);
+    }
+  };
   private readonly wheelHandler = (event: WheelEvent) => {
     this.panzoom?.zoomWithWheel(event);
   };
@@ -43,6 +49,8 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     });
 
     this.panzoomHost.nativeElement.parentElement?.addEventListener('wheel', this.wheelHandler);
+    this.visualViewport?.addEventListener('resize', this.visualViewportHandler);
+    this.visualViewport?.addEventListener('scroll', this.visualViewportHandler);
     this.fitZoom();
 
     if (this.highlightPlayerId) {
@@ -56,6 +64,8 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     }
 
     this.panzoomHost?.nativeElement.parentElement?.removeEventListener('wheel', this.wheelHandler);
+    this.visualViewport?.removeEventListener('resize', this.visualViewportHandler);
+    this.visualViewport?.removeEventListener('scroll', this.visualViewportHandler);
     this.panzoom?.destroy();
   }
 
@@ -188,10 +198,22 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     const targetX = placement.origin.x * (cellSize + cellGap) + tileWidth / 2;
     const targetY = placement.origin.y * (cellSize + cellGap) + tileHeight / 2;
     const scale = panzoom.getScale();
+    const safeCenterYRatio = this.isMobileViewport(viewport) ? 0.4 : 0.5;
+    const targetCenterX = viewport.clientWidth / 2;
+    const targetCenterY = this.getEffectiveViewportHeight(viewport) * safeCenterYRatio;
 
-    panzoom.pan(viewport.clientWidth / 2 - targetX * scale, viewport.clientHeight / 2 - targetY * scale, {
+    panzoom.pan(targetCenterX - targetX * scale, targetCenterY - targetY * scale, {
       animate: true,
     });
+  }
+
+  private isMobileViewport(viewport: HTMLElement): boolean {
+    const viewportWidth = this.visualViewport?.width ?? viewport.clientWidth;
+    return viewportWidth <= 768;
+  }
+
+  private getEffectiveViewportHeight(viewport: HTMLElement): number {
+    return this.visualViewport?.height ?? viewport.clientHeight;
   }
 
   private getPlayerNameById(playerId?: string): string {
