@@ -67,7 +67,7 @@ describe('placement-rules', () => {
     expect(result.errors.some((error) => error.code === 'MAX_TILE_LIMIT_REACHED')).toBeTrue();
   });
 
-  it('requires valid playerId for city', () => {
+  it('requires valid playerId for town', () => {
     const state = createInitialMapState();
 
     const result = validatePlacement(

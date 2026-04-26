@@ -185,7 +185,23 @@ export class CloudMapDataRepository implements MapDataRepository {
       return null;
     }
 
-    const row = data?.[0];
+    let row = data?.[0];
+
+    if (!row) {
+      const { data: fallbackData, error: fallbackError } = await this.supabase
+        .from('map_states')
+        .select('id, state, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (fallbackError) {
+        console.error('[CloudMapDataRepository] Failed fallback lookup for map state row', fallbackError);
+        return null;
+      }
+
+      row = fallbackData?.[0];
+    }
+
     if (!row) {
       return null;
     }

@@ -24,7 +24,7 @@ describe('PublicMapPageComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('returns no city matches for unknown query', () => {
+  it('returns no town matches for unknown query', () => {
     const fixture = TestBed.createComponent(PublicMapPageComponent);
     const component = fixture.componentInstance;
 
@@ -43,12 +43,4 @@ describe('PublicMapPageComponent', () => {
     expect(component.query()).toBe('');
   });
 
-  it('toggles presentation mode', () => {
-    const fixture = TestBed.createComponent(PublicMapPageComponent);
-    const component = fixture.componentInstance;
-
-    expect(component.isPresentationMode()).toBeFalse();
-    component.togglePresentationMode();
-    expect(component.isPresentationMode()).toBeTrue();
-  });
 });

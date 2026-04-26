@@ -52,7 +52,7 @@ export function validateCityPlayer(placement: TilePlacement, players: Player[]):
   }
 
   if (!placement.playerId) {
-    return errorResult('INVALID_CITY_PLAYER', 'City placement requires playerId.');
+    return errorResult('INVALID_CITY_PLAYER', 'Town placement requires playerId.');
   }
 
   const exists = players.some((player) => player.id === placement.playerId);

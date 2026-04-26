@@ -3,14 +3,15 @@
 }
 
 .public-page {
-  height: 100dvh;
+  min-height: 100dvh;
   padding: 20px;
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 14px;
   background: #0f172a;
   color: #f8fafc;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .public-page__header {
@@ -18,6 +19,10 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+}
+
+.public-page__header > * {
+  min-width: 0;
 }
 
 .public-page__header-actions {
@@ -28,6 +33,7 @@
 .public-page__header h1 {
   margin: 0;
   font-size: 1.75rem;
+  overflow-wrap: anywhere;
 }
 
 .public-page__header p {
@@ -42,6 +48,9 @@
   text-decoration: none;
   border-radius: 8px;
   padding: 8px 12px;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .public-page__content {
@@ -51,13 +60,14 @@
   min-height: 0;
 }
 
-.public-page__content--presentation {
-  grid-template-columns: 1fr;
+.public-page__content > * {
+  min-width: 0;
 }
 
 .public-page__board-wrap {
   position: relative;
   min-height: 0;
+  min-width: 0;
   display: grid;
   gap: 10px;
 }
@@ -143,6 +153,11 @@
   cursor: pointer;
 }
 
+.public-search__results strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .public-search__results small {
   color: #cbd5e1;
   overflow-wrap: anywhere;
@@ -170,6 +185,7 @@
   .public-page {
     padding: 10px;
     gap: 10px;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .public-page__header {
@@ -190,7 +206,7 @@
   .public-page__header-actions {
     width: 100%;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .public-page__admin-link {
@@ -200,13 +216,18 @@
 
   .public-page__content {
     gap: 8px;
+    grid-template-rows: auto minmax(240px, 1fr);
   }
 
   .public-search {
-    max-height: 38dvh;
+    max-height: 30dvh;
     overflow: auto;
     padding: 10px;
     gap: 8px;
+  }
+
+  .public-page__board-wrap {
+    min-height: 240px;
   }
 
   .public-search__results button {

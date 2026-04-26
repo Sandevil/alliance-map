@@ -31,13 +31,23 @@ export class MapStateService {
   private readonly dataRepository = inject(MAP_DATA_REPOSITORY) as MapDataRepository;
 
   private readonly stateSubject = new BehaviorSubject<MapState>(createInitialMapState());
+  private persistenceReady = false;
 
   readonly state$ = this.stateSubject.asObservable();
 
   constructor() {
-    void this.hydrateFromRepository();
+    void this.initializePersistence();
+  }
+
+  private async initializePersistence(): Promise<void> {
+    await this.hydrateFromRepository();
+    this.persistenceReady = true;
 
     this.state$.subscribe((state) => {
+      if (!this.persistenceReady) {
+        return;
+      }
+
       void this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state);
     });
   }

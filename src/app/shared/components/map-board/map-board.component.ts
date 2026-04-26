@@ -26,6 +26,7 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
   hoveredCell: { x: number; y: number } | null = null;
 
   private panzoom?: PanzoomObject;
+  private centerTimeoutId?: number;
   private readonly wheelHandler = (event: WheelEvent) => {
     this.panzoom?.zoomWithWheel(event);
   };
@@ -50,6 +51,10 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
   }
 
   ngOnDestroy(): void {
+    if (this.centerTimeoutId) {
+      window.clearTimeout(this.centerTimeoutId);
+    }
+
     this.panzoomHost?.nativeElement.parentElement?.removeEventListener('wheel', this.wheelHandler);
     this.panzoom?.destroy();
   }
@@ -155,6 +160,16 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
   }
 
   private centerOnPlayer(playerId: string): void {
+    if (this.centerTimeoutId) {
+      window.clearTimeout(this.centerTimeoutId);
+    }
+
+    this.panToPlayer(playerId);
+    requestAnimationFrame(() => this.panToPlayer(playerId));
+    this.centerTimeoutId = window.setTimeout(() => this.panToPlayer(playerId), 220);
+  }
+
+  private panToPlayer(playerId: string): void {
     const viewport = this.boardViewport?.nativeElement;
     const panzoom = this.panzoom;
     if (!viewport || !panzoom) {

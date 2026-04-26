@@ -686,7 +686,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
       case 'banner':
         return 'Banner';
       case 'city':
-        return 'City';
+        return 'Town';
       case 'allianceResource':
         return 'Alliance Resource';
       case 'bearTrap1':
@@ -884,7 +884,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
       OUT_OF_BOUNDS: 'Out of bounds.',
       COLLISION: 'Collision with an existing tile.',
       MAX_TILE_LIMIT_REACHED: 'Tile limit reached.',
-      INVALID_CITY_PLAYER: 'Invalid player for city.',
+      INVALID_CITY_PLAYER: 'Invalid player for town.',
       INVALID_TILE_SIZE: 'Invalid tile size.',
       GRID_TOO_SMALL: 'Grid too small.',
       PLAYER_ALREADY_EXISTS: 'Player already exists.',

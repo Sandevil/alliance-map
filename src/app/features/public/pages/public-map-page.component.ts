@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -21,7 +21,6 @@ export class PublicMapPageComponent {
   readonly query = computed(() => this.facade.query());
   readonly cityResults = computed(() => this.facade.cityResults());
   readonly selectedPlayerId = computed(() => this.facade.selectedPlayerId());
-  readonly isPresentationMode = signal(false);
 
   onQueryChange(value: string): void {
     this.facade.updateQuery(value);
@@ -29,10 +28,6 @@ export class PublicMapPageComponent {
 
   clearSearch(): void {
     this.facade.updateQuery('');
-  }
-
-  togglePresentationMode(): void {
-    this.isPresentationMode.update((value) => !value);
   }
 
   selectCity(playerId: string): void {
