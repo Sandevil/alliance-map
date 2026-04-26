@@ -3,8 +3,12 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
+    "prepare:env": "node scripts/generate-env.mjs",
+    "prestart": "npm run prepare:env",
     "start": "ng serve",
+    "prebuild": "npm run prepare:env",
     "build": "ng build",
+    "prewatch": "npm run prepare:env",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
@@ -20,6 +24,7 @@
     "@angular/router": "^19.2.0",
     "@jsverse/transloco": "^8.3.0",
     "@panzoom/panzoom": "^4.6.2",
+    "@supabase/supabase-js": "^2.49.8",
     "html-to-image": "^1.11.13",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",

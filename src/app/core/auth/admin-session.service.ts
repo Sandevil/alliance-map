@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { resolveRuntimeEnv } from '../config/runtime-env';
 
 @Injectable({ providedIn: 'root' })
 export class AdminSessionService {
@@ -71,11 +72,9 @@ export class AdminSessionService {
   }
 
   private resolveAdminPassword(): string {
-    if (typeof window !== 'undefined') {
-      const runtimePassword = (window as Window & { __ALLIANCE_ADMIN_PASSWORD__?: string }).__ALLIANCE_ADMIN_PASSWORD__;
-      if (typeof runtimePassword === 'string' && runtimePassword.trim().length > 0) {
-        return runtimePassword;
-      }
+    const runtimePassword = resolveRuntimeEnv().adminPassword;
+    if (runtimePassword) {
+      return runtimePassword;
     }
 
     return AdminSessionService.FALLBACK_PASSWORD;

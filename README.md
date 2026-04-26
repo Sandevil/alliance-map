@@ -10,6 +10,31 @@ To start a local development server, run:
 ng serve
 ```
 
+### Run `ng serve` against a real Supabase project
+
+This project reads runtime variables from `public/env.js` (generated automatically before `npm start`).
+
+1. Create your local env file from the template:
+
+```bash
+copy .env.local.example .env.local
+```
+
+2. Edit `.env.local` with your real Supabase values:
+
+- `APP_DATA_MODE=cloud`
+- `SUPABASE_URL=https://<your-project-ref>.supabase.co`
+- `SUPABASE_ANON_KEY=<anon-key>`
+- Optional: `ALLIANCE_ADMIN_PASSWORD=<admin-password>`
+
+3. Start dev server:
+
+```bash
+npm start
+```
+
+`prestart` runs `prepare:env` and regenerates `public/env.js` from `.env.local` (or OS env vars).
+
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
 ## Code scaffolding
