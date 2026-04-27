@@ -62,8 +62,9 @@ const TILE_EXPORT_COLORS = {
 } as const;
 
 const CITY_TRAP1_COLOR = 'rgba(132, 204, 22, 0.85)';
+const CITY_TRAP1_GENERAL_COLOR = 'rgba(112, 163, 46, 0.82)';
 const CITY_TRAP2_COLOR = 'rgba(249, 115, 22, 0.85)';
-const CITY_GENERAL_COLOR = 'rgba(234, 179, 8, 0.85)';
+const CITY_TRAP2_GENERAL_COLOR = 'rgba(219, 116, 48, 0.82)';
 
 @Component({
   selector: 'app-map-editor-page',
@@ -699,11 +700,17 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     }
 
     const playerList = this.getPlayerListById(placement.playerId);
-    if (playerList === 'trap1General' || playerList === 'trap2General') {
-      return 'grid__tile--city-general';
+    if (playerList === 'trap2General') {
+      return 'grid__tile--city-trap2-general';
+    }
+    if (playerList === 'trap2Main') {
+      return 'grid__tile--city-trap2';
+    }
+    if (playerList === 'trap1General') {
+      return 'grid__tile--city-trap1-general';
     }
 
-    return playerList === 'trap2Main' ? 'grid__tile--city-trap2' : 'grid__tile--city-trap1';
+    return 'grid__tile--city-trap1';
   }
 
   getTileLabel(type: TileType): string {
@@ -884,11 +891,17 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
   private getCityColorByPlayerId(playerId?: string): string {
     const playerList = this.getPlayerListById(playerId);
-    if (playerList === 'trap1General' || playerList === 'trap2General') {
-      return CITY_GENERAL_COLOR;
+    if (playerList === 'trap2General') {
+      return CITY_TRAP2_GENERAL_COLOR;
+    }
+    if (playerList === 'trap2Main') {
+      return CITY_TRAP2_COLOR;
+    }
+    if (playerList === 'trap1General') {
+      return CITY_TRAP1_GENERAL_COLOR;
     }
 
-    return playerList === 'trap2Main' ? CITY_TRAP2_COLOR : CITY_TRAP1_COLOR;
+    return CITY_TRAP1_COLOR;
   }
 
   private getPlayerListById(playerId?: string): PlayerListKey | null {

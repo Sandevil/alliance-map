@@ -182,11 +182,17 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     }
 
     const playerList = this.getPlayerListById(placement.playerId);
-    if (playerList === 'trap1General' || playerList === 'trap2General') {
-      return 'grid__tile--city-general';
+    if (playerList === 'trap2General') {
+      return 'grid__tile--city-trap2-general';
+    }
+    if (playerList === 'trap2Main') {
+      return 'grid__tile--city-trap2';
+    }
+    if (playerList === 'trap1General') {
+      return 'grid__tile--city-trap1-general';
     }
 
-    return playerList === 'trap2Main' ? 'grid__tile--city-trap2' : 'grid__tile--city-trap1';
+    return 'grid__tile--city-trap1';
   }
 
   private centerOnPlayer(playerId: string): void {
