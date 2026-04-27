@@ -14,6 +14,7 @@
           @for (cell of gridCells; track $index) {
             <button
               class="grid__cell"
+              [class.grid__cell--claimed]="isClaimedCell(cell.x, cell.y)"
               type="button"
               [attr.data-x]="cell.x"
               [attr.data-y]="cell.y"

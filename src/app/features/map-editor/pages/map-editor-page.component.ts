@@ -20,6 +20,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import {
   GRID_MIN_SIZE,
   GeneralPlayerListKey,
+  MapState,
   MAIN_LIST_MAX_PLAYERS,
   Player,
   PlayerListKey,
@@ -147,6 +148,8 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
       '--grid-height': `${grid.height}`,
     };
   });
+
+  readonly claimedCells = computed(() => this.buildClaimedCells(this.state()));
 
   playerName = '';
   playerPower = 0;
@@ -739,6 +742,10 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     return !!cell && cell.x === x && cell.y === y;
   }
 
+  isClaimedCell(x: number, y: number): boolean {
+    return this.claimedCells().has(`${x}:${y}`);
+  }
+
   onPlacementDragMoved(event: CdkDragMove<DragPlacementData>): void {
     const target = document.elementFromPoint(event.pointerPosition.x, event.pointerPosition.y) as HTMLElement | null;
     const cellElement = target?.closest('.grid__cell') as HTMLElement | null;
@@ -961,5 +968,34 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
         targetGeneralList,
       };
     });
+  }
+
+  private buildClaimedCells(state: MapState): Set<string> {
+    const claimed = new Set<string>();
+    const maxX = state.settings.grid.width - 1;
+    const maxY = state.settings.grid.height - 1;
+
+    for (const placement of state.placements) {
+      const claimSpan = placement.type === 'fortress' ? 15 : placement.type === 'banner' ? 7 : null;
+      if (!claimSpan) {
+        continue;
+      }
+
+      const radius = (claimSpan - 1) / 2;
+      const centerX = placement.origin.x + (placement.size.w - 1) / 2;
+      const centerY = placement.origin.y + (placement.size.h - 1) / 2;
+      const startX = Math.max(0, Math.floor(centerX - radius));
+      const endX = Math.min(maxX, Math.ceil(centerX + radius));
+      const startY = Math.max(0, Math.floor(centerY - radius));
+      const endY = Math.min(maxY, Math.ceil(centerY + radius));
+
+      for (let y = startY; y <= endY; y += 1) {
+        for (let x = startX; x <= endX; x += 1) {
+          claimed.add(`${x}:${y}`);
+        }
+      }
+    }
+
+    return claimed;
   }
 }

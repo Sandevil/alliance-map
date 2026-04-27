@@ -93,12 +93,20 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     return cells;
   }
 
+  get claimedCells(): Set<string> {
+    return this.buildClaimedCells();
+  }
+
   setHoveredCell(x: number, y: number): void {
     this.hoveredCell = { x, y };
   }
 
   clearHoveredCell(): void {
     this.hoveredCell = null;
+  }
+
+  isClaimedCell(x: number, y: number): boolean {
+    return this.claimedCells.has(`${x}:${y}`);
   }
 
   zoomIn(): void {
@@ -238,5 +246,34 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     ];
 
     return allPlayers.find((item) => item.id === playerId);
+  }
+
+  private buildClaimedCells(): Set<string> {
+    const claimed = new Set<string>();
+    const maxX = this.state.settings.grid.width - 1;
+    const maxY = this.state.settings.grid.height - 1;
+
+    for (const placement of this.state.placements) {
+      const claimSpan = placement.type === 'fortress' ? 15 : placement.type === 'banner' ? 7 : null;
+      if (!claimSpan) {
+        continue;
+      }
+
+      const radius = (claimSpan - 1) / 2;
+      const centerX = placement.origin.x + (placement.size.w - 1) / 2;
+      const centerY = placement.origin.y + (placement.size.h - 1) / 2;
+      const startX = Math.max(0, Math.floor(centerX - radius));
+      const endX = Math.min(maxX, Math.ceil(centerX + radius));
+      const startY = Math.max(0, Math.floor(centerY - radius));
+      const endY = Math.min(maxY, Math.ceil(centerY + radius));
+
+      for (let y = startY; y <= endY; y += 1) {
+        for (let x = startX; x <= endX; x += 1) {
+          claimed.add(`${x}:${y}`);
+        }
+      }
+    }
+
+    return claimed;
   }
 }
