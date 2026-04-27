@@ -29,7 +29,10 @@
           <article
             class="grid__tile"
             [class.grid__tile--highlight]="isPlacementHighlighted(placement)"
-            [ngClass]="'grid__tile--' + placement.type"
+            [ngClass]="[
+              'grid__tile--' + placement.type,
+              getCityTrapClass(placement) ?? ''
+            ]"
             [ngStyle]="getPlacementStyle(placement)">
             <strong>{{ getTileLabel(placement) }}</strong>
           </article>

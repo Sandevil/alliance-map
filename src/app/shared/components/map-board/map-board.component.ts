@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { AfterViewInit, Component, ElementRef, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild } from '@angular/core';
 import Panzoom, { PanzoomObject } from '@panzoom/panzoom';
 
-import { MapState, Player, TilePlacement, toExternal } from '../../../core/domain';
+import { MapState, Player, PlayerListKey, TilePlacement, toExternal } from '../../../core/domain';
 
 @Component({
   selector: 'app-map-board',
@@ -177,6 +177,19 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     return placement.type === 'city' && !!this.highlightPlayerId && placement.playerId === this.highlightPlayerId;
   }
 
+  getCityTrapClass(placement: TilePlacement): string | null {
+    if (placement.type !== 'city') {
+      return null;
+    }
+
+    const playerList = this.getPlayerListById(placement.playerId);
+    if (playerList === 'trap1General' || playerList === 'trap2General') {
+      return 'grid__tile--city-general';
+    }
+
+    return playerList === 'trap2Main' ? 'grid__tile--city-trap2' : 'grid__tile--city-trap1';
+  }
+
   private centerOnPlayer(playerId: string): void {
     if (this.centerTimeoutId) {
       window.clearTimeout(this.centerTimeoutId);
@@ -246,6 +259,22 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     ];
 
     return allPlayers.find((item) => item.id === playerId);
+  }
+
+  private getPlayerListById(playerId?: string): PlayerListKey | null {
+    if (!playerId) {
+      return null;
+    }
+
+    const listKeys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+
+    for (const listKey of listKeys) {
+      if (this.state.players[listKey].some((player) => player.id === playerId)) {
+        return listKey;
+      }
+    }
+
+    return null;
   }
 
   private buildClaimedCells(): Set<string> {
