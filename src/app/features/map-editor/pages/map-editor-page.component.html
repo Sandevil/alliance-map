@@ -194,7 +194,7 @@
                 <button
                   class="grid__cell"
                   [class.grid__cell--active]="isHoveredCell(cell.x, cell.y)"
-                  [class.grid__cell--claimed]="isClaimedCell(cell.x, cell.y)"
+                  [ngClass]="claimedCellClassMap().get(cell.key) ?? []"
                   type="button"
                   [attr.data-x]="cell.x"
                   [attr.data-y]="cell.y"

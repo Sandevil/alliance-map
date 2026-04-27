@@ -56,8 +56,24 @@
 }
 
 .grid__cell--claimed {
-  border-color: #38bdf8;
-  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.95);
+  border-color: #334155;
+  box-shadow: none;
+}
+
+.grid__cell--claimed-top {
+  border-top-color: rgba(56, 189, 248, 0.8);
+}
+
+.grid__cell--claimed-bottom {
+  border-bottom-color: rgba(56, 189, 248, 0.8);
+}
+
+.grid__cell--claimed-left {
+  border-left-color: rgba(56, 189, 248, 0.8);
+}
+
+.grid__cell--claimed-right {
+  border-right-color: rgba(56, 189, 248, 0.8);
 }
 
 .grid__tile {

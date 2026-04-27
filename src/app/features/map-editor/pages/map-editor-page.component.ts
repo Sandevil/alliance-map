@@ -4,6 +4,7 @@ import { TranslocoPipe } from '@jsverse/transloco';
 import { CommonModule } from '@angular/common';
 import {
   AfterViewInit,
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   HostListener,
@@ -69,6 +70,7 @@ const CITY_GENERAL_COLOR = 'rgba(234, 179, 8, 0.85)';
   imports: [CommonModule, TranslocoPipe, FormsModule, CdkDropListGroup, CdkDropList, CdkDrag, MapLegendComponent],
   templateUrl: './map-editor-page.component.html',
   styleUrl: './map-editor-page.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   private readonly mapStateService = inject(MapStateService);
@@ -130,11 +132,11 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
   readonly gridCells = computed(() => {
     const grid = this.state().settings.grid;
-    const cells: { x: number; y: number }[] = [];
+    const cells: { x: number; y: number; key: string }[] = [];
 
     for (let y = 0; y < grid.height; y += 1) {
       for (let x = 0; x < grid.width; x += 1) {
-        cells.push({ x, y });
+        cells.push({ x, y, key: `${x}:${y}` });
       }
     }
 
@@ -150,6 +152,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   });
 
   readonly claimedCells = computed(() => this.buildClaimedCells(this.state()));
+  readonly claimedCellClassMap = computed(() => this.buildClaimedBorderClassMap(this.claimedCells()));
 
   playerName = '';
   playerPower = 0;
@@ -647,8 +650,8 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     this.panzoom.pan(0, 0, { animate: false });
   }
 
-  trackByCell(_: number, cell: { x: number; y: number }): string {
-    return `${cell.x}-${cell.y}`;
+  trackByCell(_: number, cell: { key: string }): string {
+    return cell.key;
   }
 
   trackById(_: number, item: { id: string }): string {
@@ -971,7 +974,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   }
 
   private buildClaimedCells(state: MapState): Set<string> {
-    const claimed = new Set<string>();
+    const claimedArea = new Set<string>();
     const maxX = state.settings.grid.width - 1;
     const maxY = state.settings.grid.height - 1;
 
@@ -991,11 +994,58 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
       for (let y = startY; y <= endY; y += 1) {
         for (let x = startX; x <= endX; x += 1) {
-          claimed.add(`${x}:${y}`);
+          claimedArea.add(`${x}:${y}`);
         }
       }
     }
 
-    return claimed;
+    const borderCells = new Set<string>();
+    const directions = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const;
+
+    for (const cell of claimedArea) {
+      const [xStr, yStr] = cell.split(':');
+      const x = Number(xStr);
+      const y = Number(yStr);
+
+      const isBorder = directions.some(([dx, dy]) => !claimedArea.has(`${x + dx}:${y + dy}`));
+      if (isBorder) {
+        borderCells.add(cell);
+      }
+    }
+
+    return borderCells;
+  }
+
+  private buildClaimedBorderClassMap(claimed: Set<string>): Map<string, string[]> {
+    const classMap = new Map<string, string[]>();
+
+    for (const key of claimed) {
+      const [xStr, yStr] = key.split(':');
+      const x = Number(xStr);
+      const y = Number(yStr);
+
+      const classes = ['grid__cell--claimed'];
+      if (!claimed.has(`${x}:${y - 1}`)) {
+        classes.push('grid__cell--claimed-top');
+      }
+      if (!claimed.has(`${x}:${y + 1}`)) {
+        classes.push('grid__cell--claimed-bottom');
+      }
+      if (!claimed.has(`${x - 1}:${y}`)) {
+        classes.push('grid__cell--claimed-left');
+      }
+      if (!claimed.has(`${x + 1}:${y}`)) {
+        classes.push('grid__cell--claimed-right');
+      }
+
+      classMap.set(key, classes);
+    }
+
+    return classMap;
   }
 }

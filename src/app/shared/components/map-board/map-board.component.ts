@@ -1,5 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Input,
+  OnChanges,
+  OnDestroy,
+  SimpleChanges,
+  ViewChild,
+} from '@angular/core';
 import Panzoom, { PanzoomObject } from '@panzoom/panzoom';
 
 import { MapState, Player, PlayerListKey, TilePlacement, toExternal } from '../../../core/domain';
@@ -9,6 +19,7 @@ import { MapState, Player, PlayerListKey, TilePlacement, toExternal } from '../.
   imports: [CommonModule],
   templateUrl: './map-board.component.html',
   styleUrl: './map-board.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
   @Input({ required: true }) state!: MapState;
@@ -24,6 +35,12 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
   private boardViewport?: ElementRef<HTMLElement>;
 
   hoveredCell: { x: number; y: number } | null = null;
+  gridStyle: Record<string, string> = {
+    '--grid-width': '0',
+    '--grid-height': '0',
+  };
+  gridCells: Array<{ x: number; y: number; key: string }> = [];
+  claimedCellClassMap = new Map<string, string[]>();
 
   private panzoom?: PanzoomObject;
   private centerTimeoutId?: number;
@@ -70,31 +87,13 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['state'] && this.state) {
+      this.rebuildDerivedGridData();
+    }
+
     if (changes['highlightPlayerId'] && this.highlightPlayerId) {
       this.centerOnPlayer(this.highlightPlayerId);
     }
-  }
-
-  get gridStyle(): Record<string, string> {
-    return {
-      '--grid-width': `${this.state.settings.grid.width}`,
-      '--grid-height': `${this.state.settings.grid.height}`,
-    };
-  }
-
-  get gridCells(): Array<{ x: number; y: number }> {
-    const cells: Array<{ x: number; y: number }> = [];
-    for (let y = 0; y < this.state.settings.grid.height; y += 1) {
-      for (let x = 0; x < this.state.settings.grid.width; x += 1) {
-        cells.push({ x, y });
-      }
-    }
-
-    return cells;
-  }
-
-  get claimedCells(): Set<string> {
-    return this.buildClaimedCells();
   }
 
   setHoveredCell(x: number, y: number): void {
@@ -105,8 +104,8 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     this.hoveredCell = null;
   }
 
-  isClaimedCell(x: number, y: number): boolean {
-    return this.claimedCells.has(`${x}:${y}`);
+  trackByCell(_: number, cell: { key: string }): string {
+    return cell.key;
   }
 
   zoomIn(): void {
@@ -278,7 +277,7 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
   }
 
   private buildClaimedCells(): Set<string> {
-    const claimed = new Set<string>();
+    const claimedArea = new Set<string>();
     const maxX = this.state.settings.grid.width - 1;
     const maxY = this.state.settings.grid.height - 1;
 
@@ -298,11 +297,76 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
 
       for (let y = startY; y <= endY; y += 1) {
         for (let x = startX; x <= endX; x += 1) {
-          claimed.add(`${x}:${y}`);
+          claimedArea.add(`${x}:${y}`);
         }
       }
     }
 
-    return claimed;
+    const borderCells = new Set<string>();
+    const directions = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const;
+
+    for (const cell of claimedArea) {
+      const [xStr, yStr] = cell.split(':');
+      const x = Number(xStr);
+      const y = Number(yStr);
+
+      const isBorder = directions.some(([dx, dy]) => !claimedArea.has(`${x + dx}:${y + dy}`));
+      if (isBorder) {
+        borderCells.add(cell);
+      }
+    }
+
+    return borderCells;
+  }
+
+  private rebuildDerivedGridData(): void {
+    this.gridStyle = {
+      '--grid-width': `${this.state.settings.grid.width}`,
+      '--grid-height': `${this.state.settings.grid.height}`,
+    };
+
+    const cells: Array<{ x: number; y: number; key: string }> = [];
+    for (let y = 0; y < this.state.settings.grid.height; y += 1) {
+      for (let x = 0; x < this.state.settings.grid.width; x += 1) {
+        cells.push({ x, y, key: `${x}:${y}` });
+      }
+    }
+    this.gridCells = cells;
+
+    const claimed = this.buildClaimedCells();
+    this.claimedCellClassMap = this.buildClaimedBorderClassMap(claimed);
+  }
+
+  private buildClaimedBorderClassMap(claimed: Set<string>): Map<string, string[]> {
+    const classMap = new Map<string, string[]>();
+
+    for (const key of claimed) {
+      const [xStr, yStr] = key.split(':');
+      const x = Number(xStr);
+      const y = Number(yStr);
+
+      const classes = ['grid__cell--claimed'];
+      if (!claimed.has(`${x}:${y - 1}`)) {
+        classes.push('grid__cell--claimed-top');
+      }
+      if (!claimed.has(`${x}:${y + 1}`)) {
+        classes.push('grid__cell--claimed-bottom');
+      }
+      if (!claimed.has(`${x - 1}:${y}`)) {
+        classes.push('grid__cell--claimed-left');
+      }
+      if (!claimed.has(`${x + 1}:${y}`)) {
+        classes.push('grid__cell--claimed-right');
+      }
+
+      classMap.set(key, classes);
+    }
+
+    return classMap;
   }
 }

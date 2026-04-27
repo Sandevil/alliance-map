@@ -11,10 +11,10 @@
     <div #panzoomHost class="panzoom-host">
       <div #gridElement class="grid" [ngStyle]="gridStyle">
         <div class="grid__cells">
-          @for (cell of gridCells; track $index) {
+          @for (cell of gridCells; track trackByCell) {
             <button
               class="grid__cell"
-              [class.grid__cell--claimed]="isClaimedCell(cell.x, cell.y)"
+              [ngClass]="claimedCellClassMap.get(cell.key) ?? []"
               type="button"
               [attr.data-x]="cell.x"
               [attr.data-y]="cell.y"
