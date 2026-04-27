@@ -19,6 +19,7 @@ export function createInitialMapState(): MapState {
       trap2Main: [],
       trap1General: [],
       trap2General: [],
+      noTrapGeneral: [],
     },
     placements: [],
   };

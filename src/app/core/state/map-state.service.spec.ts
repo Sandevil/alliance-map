@@ -134,6 +134,7 @@ describe('MapStateService', () => {
     const alice = [
       ...service.snapshot.players.trap1General,
       ...service.snapshot.players.trap2General,
+      ...service.snapshot.players.noTrapGeneral,
       ...service.snapshot.players.trap1Main,
       ...service.snapshot.players.trap2Main,
     ].find((player) => player.id === 'existing-1');
@@ -161,5 +162,14 @@ describe('MapStateService', () => {
     expect(result.summary.updated).toBe(1);
     expect(service.snapshot.players.trap1Main.some((player) => player.id === 'p-move')).toBeFalse();
     expect(service.snapshot.players.trap2General.some((player) => player.id === 'p-move')).toBeTrue();
+  });
+
+  it('defaults imported/upserted players to noTrapGeneral when target is omitted', () => {
+    const result = service.upsertPlayersByName([
+      { name: 'No Trap Default', power: 55 },
+    ]);
+
+    expect(result.ok).toBeTrue();
+    expect(service.snapshot.players.noTrapGeneral.some((player) => player.name === 'No Trap Default')).toBeTrue();
   });
 });

@@ -182,6 +182,9 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     }
 
     const playerList = this.getPlayerListById(placement.playerId);
+    if (playerList === 'noTrapGeneral') {
+      return 'grid__tile--city-no-trap-general';
+    }
     if (playerList === 'trap2General') {
       return 'grid__tile--city-trap2-general';
     }
@@ -261,6 +264,7 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
       ...this.state.players.trap2Main,
       ...this.state.players.trap1General,
       ...this.state.players.trap2General,
+      ...this.state.players.noTrapGeneral,
     ];
 
     return allPlayers.find((item) => item.id === playerId);
@@ -271,7 +275,7 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
       return null;
     }
 
-    const listKeys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+    const listKeys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
 
     for (const listKey of listKeys) {
       if (this.state.players[listKey].some((player) => player.id === playerId)) {

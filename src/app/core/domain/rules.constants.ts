@@ -19,4 +19,4 @@ export const TILE_RULES: Record<TileType, TileRule> = {
   fortress: { size: { w: 3, h: 3 }, maxCount: 1 },
 };
 
-export const GENERAL_LIST_KEYS: readonly GeneralPlayerListKey[] = ['trap1General', 'trap2General'] as const;
+export const GENERAL_LIST_KEYS: readonly GeneralPlayerListKey[] = ['trap1General', 'trap2General', 'noTrapGeneral'] as const;

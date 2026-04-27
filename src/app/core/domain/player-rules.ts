@@ -88,7 +88,7 @@ export function returnPlayerToHomeGeneralList(state: MapState, playerId: string)
 }
 
 export function findPlayerLocation(state: MapState, playerId: string): PlayerListKey | null {
-  const keys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+  const keys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
 
   for (const key of keys) {
     const found = state.players[key].some((player) => player.id === playerId);
@@ -105,7 +105,7 @@ export function isMainList(list: PlayerListKey): list is MainPlayerListKey {
 }
 
 export function isGeneralList(list: PlayerListKey): list is GeneralPlayerListKey {
-  return list === 'trap1General' || list === 'trap2General';
+  return list === 'trap1General' || list === 'trap2General' || list === 'noTrapGeneral';
 }
 
 function okResult(): RuleValidationResult {

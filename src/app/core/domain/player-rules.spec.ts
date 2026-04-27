@@ -16,6 +16,20 @@ describe('player-rules', () => {
     expect(state.players.trap1General.length).toBe(1);
   });
 
+  it('adds player to no-trap general list', () => {
+    const state = createInitialMapState();
+
+    const result = addPlayerToGeneralList(state, {
+      id: 'p-no-trap',
+      name: 'No Trap Player',
+      power: 321,
+      targetGeneralList: 'noTrapGeneral',
+    });
+
+    expect(result.ok).toBeTrue();
+    expect(state.players.noTrapGeneral.length).toBe(1);
+  });
+
   it('prevents duplicates across all lists', () => {
     const state = createInitialMapState();
 

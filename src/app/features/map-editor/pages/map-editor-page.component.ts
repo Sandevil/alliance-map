@@ -65,6 +65,7 @@ const CITY_TRAP1_COLOR = 'rgba(132, 204, 22, 0.85)';
 const CITY_TRAP1_GENERAL_COLOR = 'rgba(112, 163, 46, 0.82)';
 const CITY_TRAP2_COLOR = 'rgba(249, 115, 22, 0.85)';
 const CITY_TRAP2_GENERAL_COLOR = 'rgba(219, 116, 48, 0.82)';
+const CITY_NO_TRAP_GENERAL_COLOR = 'rgba(234, 179, 8, 0.85)';
 
 @Component({
   selector: 'app-map-editor-page',
@@ -109,12 +110,13 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     'fortress',
   ];
 
-  readonly playerLists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+  readonly playerLists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
 
   readonly connectedDropLists = [
     'tile-catalog-drop',
     'trap1General',
     'trap2General',
+    'noTrapGeneral',
     'trap1Main',
     'trap2Main',
     'map-grid-drop',
@@ -157,7 +159,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
   playerName = '';
   playerPower = 0;
-  playerTargetGeneralList: GeneralPlayerListKey = 'trap1General';
+  playerTargetGeneralList: GeneralPlayerListKey = 'noTrapGeneral';
   resizeWidth = this.mapStateService.snapshot.settings.grid.width;
   resizeHeight = this.mapStateService.snapshot.settings.grid.height;
   resizeAnchor: ResizeAnchor = 'top-left';
@@ -700,6 +702,9 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     }
 
     const playerList = this.getPlayerListById(placement.playerId);
+    if (playerList === 'noTrapGeneral') {
+      return 'grid__tile--city-no-trap-general';
+    }
     if (playerList === 'trap2General') {
       return 'grid__tile--city-trap2-general';
     }
@@ -781,6 +786,8 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
         return 'Trap 1 General';
       case 'trap2General':
         return 'Trap 2 General';
+      case 'noTrapGeneral':
+        return 'No Trap General';
       case 'trap1Main':
         return `Trap 1 Main (max ${MAIN_LIST_MAX_PLAYERS})`;
       case 'trap2Main':
@@ -878,6 +885,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
       ...state.players.trap2Main,
       ...state.players.trap1General,
       ...state.players.trap2General,
+      ...state.players.noTrapGeneral,
     ];
   }
 
@@ -891,6 +899,9 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
   private getCityColorByPlayerId(playerId?: string): string {
     const playerList = this.getPlayerListById(playerId);
+    if (playerList === 'noTrapGeneral') {
+      return CITY_NO_TRAP_GENERAL_COLOR;
+    }
     if (playerList === 'trap2General') {
       return CITY_TRAP2_GENERAL_COLOR;
     }
@@ -910,7 +921,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     }
 
     const players = this.state().players;
-    const listKeys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+    const listKeys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
 
     for (const listKey of listKeys) {
       if (players[listKey].some((player) => player.id === playerId)) {
@@ -953,7 +964,10 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
         .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
         .map((item) => {
           const target = item['targetGeneralList'];
-          const targetGeneralList = target === 'trap2General' ? 'trap2General' : 'trap1General';
+          const targetGeneralList: GeneralPlayerListKey =
+            target === 'trap1General' || target === 'trap2General' || target === 'noTrapGeneral'
+              ? target
+              : 'noTrapGeneral';
           return {
             name: typeof item['name'] === 'string' ? item['name'] : '',
             power: typeof item['power'] === 'number' ? item['power'] : Number(item['power']),
@@ -976,7 +990,10 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
     return dataRows.map((row) => {
       const [name = '', powerRaw = '0', listRaw = ''] = row.split(/[;,]/).map((value) => value.trim());
-      const targetGeneralList: GeneralPlayerListKey = listRaw === 'trap2General' ? 'trap2General' : 'trap1General';
+      const targetGeneralList: GeneralPlayerListKey =
+        listRaw === 'trap1General' || listRaw === 'trap2General' || listRaw === 'noTrapGeneral'
+          ? listRaw
+          : 'noTrapGeneral';
 
       return {
         name,

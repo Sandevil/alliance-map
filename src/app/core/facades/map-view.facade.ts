@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
-import { createInitialMapState } from '../domain';
+import { MapState, createInitialMapState } from '../domain';
 import { MAP_DATA_REPOSITORY } from '../state/data/map-data.tokens';
 import { MapDataRepository } from '../state/data/map-data.repository';
 
@@ -55,7 +55,7 @@ export class MapViewFacade {
 
   async reloadPublishedState(): Promise<void> {
     const publishedState = await this.dataRepository.loadCurrentState('default', 'published');
-    this.stateSignal.set(publishedState ?? createInitialMapState());
+    this.stateSignal.set(this.normalizeLegacyPlayerLists(publishedState ?? createInitialMapState()));
   }
 
   resetUiState(): void {
@@ -66,10 +66,35 @@ export class MapViewFacade {
   private getAllPlayers() {
     const state = this.state();
     return [
-      ...state.players.trap1Main,
-      ...state.players.trap2Main,
-      ...state.players.trap1General,
-      ...state.players.trap2General,
+      ...(Array.isArray(state.players?.trap1Main) ? state.players.trap1Main : []),
+      ...(Array.isArray(state.players?.trap2Main) ? state.players.trap2Main : []),
+      ...(Array.isArray(state.players?.trap1General) ? state.players.trap1General : []),
+      ...(Array.isArray(state.players?.trap2General) ? state.players.trap2General : []),
+      ...(Array.isArray(state.players?.noTrapGeneral) ? state.players.noTrapGeneral : []),
     ];
+  }
+
+  private normalizeLegacyPlayerLists(state: MapState): MapState {
+    const normalized = structuredClone(state);
+
+    const players = normalized.players as Partial<MapState['players']>;
+    if (!Array.isArray(players.trap1Main)) {
+      players.trap1Main = [];
+    }
+    if (!Array.isArray(players.trap2Main)) {
+      players.trap2Main = [];
+    }
+    if (!Array.isArray(players.trap1General)) {
+      players.trap1General = [];
+    }
+    if (!Array.isArray(players.trap2General)) {
+      players.trap2General = [];
+    }
+    if (!Array.isArray(players.noTrapGeneral)) {
+      players.noTrapGeneral = [];
+    }
+
+    normalized.players = players as MapState['players'];
+    return normalized;
   }
 }

@@ -26,7 +26,7 @@ export interface TilePlacement {
 }
 
 export type MainPlayerListKey = 'trap1Main' | 'trap2Main';
-export type GeneralPlayerListKey = 'trap1General' | 'trap2General';
+export type GeneralPlayerListKey = 'trap1General' | 'trap2General' | 'noTrapGeneral';
 export type PlayerListKey = MainPlayerListKey | GeneralPlayerListKey;
 
 export interface Player {
@@ -41,6 +41,7 @@ export interface PlayerLists {
   trap2Main: Player[];
   trap1General: Player[];
   trap2General: Player[];
+  noTrapGeneral: Player[];
 }
 
 export interface ExternalReference {

@@ -166,7 +166,7 @@ export class MapStateService {
 
     const normalize = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, ' ');
 
-    const lists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+    const lists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
     const indexByName = new Map<string, { list: PlayerListKey; player: Player }>();
 
     for (const list of lists) {
@@ -181,7 +181,7 @@ export class MapStateService {
     for (const item of players) {
       const name = typeof item.name === 'string' ? item.name.trim() : '';
       const power = item.power;
-      const targetGeneralList = item.targetGeneralList ?? 'trap1General';
+      const targetGeneralList = item.targetGeneralList ?? 'noTrapGeneral';
 
       if (!name || !Number.isFinite(power) || power < 0) {
         summary.skipped += 1;
@@ -281,7 +281,7 @@ export class MapStateService {
       };
     }
 
-    const lists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+    const lists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
     let updated = false;
 
     for (const list of lists) {
@@ -312,7 +312,7 @@ export class MapStateService {
 
   removePlayer(playerId: string): RuleValidationResult {
     const next = this.cloneState();
-    const lists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+    const lists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
 
     let removed = false;
 
@@ -473,6 +473,10 @@ export class MapStateService {
 
     const parsed = migrated.state;
 
+    if (!Array.isArray(parsed.players?.noTrapGeneral)) {
+      parsed.players.noTrapGeneral = [];
+    }
+
     if (!this.isFiniteNumber(parsed.settings?.grid?.width) || !this.isFiniteNumber(parsed.settings?.grid?.height)) {
       return {
         ok: false,
@@ -487,7 +491,7 @@ export class MapStateService {
       };
     }
 
-    const listKeys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General'];
+    const listKeys: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
     const allPlayerIds = new Set<string>();
 
     for (const key of listKeys) {
@@ -506,7 +510,9 @@ export class MapStateService {
           typeof player.name !== 'string' ||
           !this.isFiniteNumber(player.power) ||
           player.power < 0 ||
-          (player.homeGeneralList !== 'trap1General' && player.homeGeneralList !== 'trap2General')
+          (player.homeGeneralList !== 'trap1General' &&
+            player.homeGeneralList !== 'trap2General' &&
+            player.homeGeneralList !== 'noTrapGeneral')
         ) {
           return {
             ok: false,
@@ -627,16 +633,21 @@ export class MapStateService {
     const trap2Main = Array.isArray(playersRoot['trap2Main']) ? playersRoot['trap2Main'] : [];
     const trap1General = Array.isArray(playersRoot['trap1General']) ? playersRoot['trap1General'] : [];
     const trap2General = Array.isArray(playersRoot['trap2General']) ? playersRoot['trap2General'] : [];
+    const noTrapGeneral = Array.isArray(playersRoot['noTrapGeneral']) ? playersRoot['noTrapGeneral'] : [];
 
     const mapPlayers = (list: unknown[], listKey: PlayerListKey): Player[] =>
       list
         .filter((item) => this.isRecord(item))
         .map((player) => {
           const homeGeneralList: GeneralPlayerListKey =
-            player['homeGeneralList'] === 'trap1General' || player['homeGeneralList'] === 'trap2General'
+            player['homeGeneralList'] === 'trap1General' ||
+            player['homeGeneralList'] === 'trap2General' ||
+            player['homeGeneralList'] === 'noTrapGeneral'
               ? player['homeGeneralList']
               : listKey === 'trap2General' || listKey === 'trap2Main'
                 ? 'trap2General'
+                : listKey === 'noTrapGeneral'
+                  ? 'noTrapGeneral'
                 : 'trap1General';
 
           return {
@@ -690,6 +701,7 @@ export class MapStateService {
         trap2Main: mapPlayers(trap2Main, 'trap2Main'),
         trap1General: mapPlayers(trap1General, 'trap1General'),
         trap2General: mapPlayers(trap2General, 'trap2General'),
+        noTrapGeneral: mapPlayers(noTrapGeneral, 'noTrapGeneral'),
       },
       placements,
     };

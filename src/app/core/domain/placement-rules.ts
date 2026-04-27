@@ -104,6 +104,7 @@ function getAllPlayers(state: MapState): Player[] {
     ...state.players.trap2Main,
     ...state.players.trap1General,
     ...state.players.trap2General,
+    ...state.players.noTrapGeneral,
   ];
 }
 
