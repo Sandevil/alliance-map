@@ -128,22 +128,42 @@
           <h2>Players</h2>
           <button type="button" class="panel__add" (click)="openAddPlayerDialog()" aria-label="Add player">+</button>
         </div>
-        <div class="player-lists">
-          @for (listKey of playerLists; track listKey) {
+        <div class="player-lists" cdkDropList [cdkDropListData]="playerLists()" (cdkDropListDropped)="onPlayerPanelsReorder($event)">
+          @for (listKey of playerLists(); track listKey) {
             <article
               class="player-list"
               [ngClass]="{ 'player-list--main': isMainList(listKey) }"
+              cdkDrag
+              [cdkDragData]="listKey"
               cdkDropList
               [id]="listKey"
               [cdkDropListConnectedTo]="connectedDropLists"
               (cdkDropListDropped)="onPlayerListDrop($event)">
-              <header>
-                <h3>{{ getListTitle(listKey) }}</h3>
-                <span>{{ getPlayersByList(listKey).length }}</span>
+              <header class="player-list__header">
+                <button
+                  type="button"
+                  class="player-list__toggle"
+                  (click)="togglePlayerPanel(listKey)"
+                  [attr.aria-expanded]="isPlayerPanelOpen(listKey)">
+                  <span class="player-list__drag" cdkDragHandle title="Reorder panel">⋮⋮</span>
+                  <h3>{{ getListTitle(listKey) }}</h3>
+                  <span>{{ getPlayersByList(listKey).length }}</span>
+                  <span class="panel__toggle-icon" [class.panel__toggle-icon--open]="isPlayerPanelOpen(listKey)">▾</span>
+                </button>
               </header>
 
+              @if (isPlayerPanelOpen(listKey)) {
+              <div class="player-list__search-wrap">
+                <input
+                  class="player-list__search"
+                  type="text"
+                  [value]="getPanelSearchValue(listKey)"
+                  (input)="setPanelSearchValue(listKey, $any($event.target).value)"
+                  placeholder="Search name or power" />
+              </div>
+
               <div class="player-list__items">
-                @for (player of getPlayersByList(listKey); track trackById) {
+                @for (player of getVisiblePlayersByList(listKey); track trackById) {
                   <div class="player-item" cdkDrag [cdkDragData]="getPlayerDragData(player.id, listKey)">
                     <div class="player-item__info">
                       <strong>{{ player.name }}</strong>
@@ -158,6 +178,7 @@
                   <p class="empty">Drop players here</p>
                 }
               </div>
+              }
             </article>
           }
         </div>

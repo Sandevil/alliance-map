@@ -1,4 +1,4 @@
-import { CdkDrag, CdkDragDrop, CdkDragMove, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDragMove, CdkDropList, CdkDropListGroup, moveItemInArray } from '@angular/cdk/drag-drop';
 import Panzoom, { PanzoomObject } from '@panzoom/panzoom';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { CommonModule } from '@angular/common';
@@ -53,6 +53,17 @@ type DragPlacementData = {
 
 type DragData = DragPlayerData | DragTileData | DragPlacementData;
 
+type PanelOpenState = Record<PlayerListKey, boolean>;
+type PanelSearchState = Record<PlayerListKey, string>;
+
+type MapEditorUiPreferences = {
+  version: 1;
+  tileCatalogOpen: boolean;
+  playerListOrder: PlayerListKey[];
+  panelOpenState: PanelOpenState;
+  panelSearchState: PanelSearchState;
+};
+
 const TILE_EXPORT_COLORS = {
   banner: 'rgba(99, 102, 241, 0.82)',
   allianceResource: 'rgba(16, 185, 129, 0.82)',
@@ -66,10 +77,12 @@ const CITY_TRAP1_GENERAL_COLOR = 'rgba(112, 163, 46, 0.82)';
 const CITY_TRAP2_COLOR = 'rgba(249, 115, 22, 0.85)';
 const CITY_TRAP2_GENERAL_COLOR = 'rgba(219, 116, 48, 0.82)';
 const CITY_NO_TRAP_GENERAL_COLOR = 'rgba(234, 179, 8, 0.85)';
+const UI_PREFS_STORAGE_KEY = 'map-editor-ui:v1';
+const DEFAULT_PLAYER_LIST_ORDER: PlayerListKey[] = ['trap1Main', 'trap1General', 'trap2Main', 'trap2General', 'noTrapGeneral'];
 
 @Component({
   selector: 'app-map-editor-page',
-  imports: [CommonModule, TranslocoPipe, FormsModule, CdkDropListGroup, CdkDropList, CdkDrag, MapLegendComponent],
+  imports: [CommonModule, TranslocoPipe, FormsModule, CdkDropListGroup, CdkDropList, CdkDrag, CdkDragHandle, MapLegendComponent],
   templateUrl: './map-editor-page.component.html',
   styleUrl: './map-editor-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -110,7 +123,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     'fortress',
   ];
 
-  readonly playerLists: PlayerListKey[] = ['trap1Main', 'trap2Main', 'trap1General', 'trap2General', 'noTrapGeneral'];
+  readonly playerLists = signal<PlayerListKey[]>([...DEFAULT_PLAYER_LIST_ORDER]);
 
   readonly connectedDropLists = [
     'tile-catalog-drop',
@@ -125,7 +138,21 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   readonly hoveredCell = signal<{ x: number; y: number } | null>(null);
   readonly feedback = signal<string | null>(null);
   readonly isSidebarOpen = signal(true);
-  readonly isTileCatalogOpen = signal(true);
+  readonly isTileCatalogOpen = signal(false);
+  readonly panelOpenState = signal<PanelOpenState>({
+    trap1Main: true,
+    trap1General: true,
+    trap2Main: true,
+    trap2General: true,
+    noTrapGeneral: true,
+  });
+  readonly panelSearchState = signal<PanelSearchState>({
+    trap1Main: '',
+    trap1General: '',
+    trap2Main: '',
+    trap2General: '',
+    noTrapGeneral: '',
+  });
   readonly isAddPlayerDialogOpen = signal(false);
   readonly isResizeDialogOpen = signal(false);
   readonly isExternalReferenceDialogOpen = signal(false);
@@ -173,6 +200,10 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   private readonly wheelHandler = (event: WheelEvent) => {
     this.panzoom?.zoomWithWheel(event);
   };
+
+  constructor() {
+    this.restoreUiPreferences();
+  }
 
   ngAfterViewInit(): void {
     if (!this.panzoomHost) {
@@ -610,6 +641,42 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
   toggleTileCatalog(): void {
     this.isTileCatalogOpen.update((value) => !value);
+    this.persistUiPreferences();
+  }
+
+  togglePlayerPanel(key: PlayerListKey): void {
+    this.panelOpenState.update((state) => ({
+      ...state,
+      [key]: !state[key],
+    }));
+    this.persistUiPreferences();
+  }
+
+  isPlayerPanelOpen(key: PlayerListKey): boolean {
+    return this.panelOpenState()[key];
+  }
+
+  setPanelSearchValue(key: PlayerListKey, value: string): void {
+    this.panelSearchState.update((state) => ({
+      ...state,
+      [key]: value,
+    }));
+    this.persistUiPreferences();
+  }
+
+  getPanelSearchValue(key: PlayerListKey): string {
+    return this.panelSearchState()[key] ?? '';
+  }
+
+  onPlayerPanelsReorder(event: CdkDragDrop<PlayerListKey[]>): void {
+    if (event.previousIndex === event.currentIndex) {
+      return;
+    }
+
+    const nextOrder = [...this.playerLists()];
+    moveItemInArray(nextOrder, event.previousIndex, event.currentIndex);
+    this.playerLists.set(nextOrder);
+    this.persistUiPreferences();
   }
 
   openAddPlayerDialog(): void {
@@ -663,6 +730,19 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
   getPlayersByList(list: PlayerListKey): Player[] {
     return this.state().players[list];
+  }
+
+  getVisiblePlayersByList(list: PlayerListKey): Player[] {
+    const term = this.getPanelSearchValue(list).trim().toLowerCase();
+    if (!term) {
+      return this.getPlayersByList(list);
+    }
+
+    return this.getPlayersByList(list).filter((player) => {
+      const byName = player.name.toLowerCase().includes(term);
+      const byPower = `${player.power}`.includes(term);
+      return byName || byPower;
+    });
   }
 
   getPlayerDragData(playerId: string, from: PlayerListKey): DragPlayerData {
@@ -1001,6 +1081,72 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
         targetGeneralList,
       };
     });
+  }
+
+  private persistUiPreferences(): void {
+    const payload: MapEditorUiPreferences = {
+      version: 1,
+      tileCatalogOpen: this.isTileCatalogOpen(),
+      playerListOrder: this.playerLists(),
+      panelOpenState: this.panelOpenState(),
+      panelSearchState: this.panelSearchState(),
+    };
+
+    localStorage.setItem(UI_PREFS_STORAGE_KEY, JSON.stringify(payload));
+  }
+
+  private restoreUiPreferences(): void {
+    try {
+      const raw = localStorage.getItem(UI_PREFS_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Partial<MapEditorUiPreferences>;
+      const normalizedOrder = this.normalizePlayerListOrder(parsed.playerListOrder);
+      this.playerLists.set(normalizedOrder);
+
+      if (typeof parsed.tileCatalogOpen === 'boolean') {
+        this.isTileCatalogOpen.set(parsed.tileCatalogOpen);
+      }
+
+      if (parsed.panelOpenState) {
+        this.panelOpenState.set({
+          trap1Main: parsed.panelOpenState.trap1Main ?? true,
+          trap1General: parsed.panelOpenState.trap1General ?? true,
+          trap2Main: parsed.panelOpenState.trap2Main ?? true,
+          trap2General: parsed.panelOpenState.trap2General ?? true,
+          noTrapGeneral: parsed.panelOpenState.noTrapGeneral ?? true,
+        });
+      }
+
+      if (parsed.panelSearchState) {
+        this.panelSearchState.set({
+          trap1Main: parsed.panelSearchState.trap1Main ?? '',
+          trap1General: parsed.panelSearchState.trap1General ?? '',
+          trap2Main: parsed.panelSearchState.trap2Main ?? '',
+          trap2General: parsed.panelSearchState.trap2General ?? '',
+          noTrapGeneral: parsed.panelSearchState.noTrapGeneral ?? '',
+        });
+      }
+    } catch {
+      // ignore invalid ui prefs
+    }
+  }
+
+  private normalizePlayerListOrder(value: unknown): PlayerListKey[] {
+    if (!Array.isArray(value)) {
+      return [...DEFAULT_PLAYER_LIST_ORDER];
+    }
+
+    const expected = new Set(DEFAULT_PLAYER_LIST_ORDER);
+    const fromStorage = value.filter((item): item is PlayerListKey => typeof item === 'string' && expected.has(item as PlayerListKey));
+    const unique = Array.from(new Set(fromStorage));
+    if (unique.length !== DEFAULT_PLAYER_LIST_ORDER.length) {
+      return [...DEFAULT_PLAYER_LIST_ORDER];
+    }
+
+    return unique;
   }
 
   private buildClaimedCells(state: MapState): Set<string> {
