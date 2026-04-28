@@ -58,6 +58,11 @@ export class MapViewFacade {
     this.stateSignal.set(this.normalizeLegacyPlayerLists(publishedState ?? createInitialMapState()));
   }
 
+  async reloadPublishedVariantState(variantKey: string): Promise<void> {
+    const variantState = await this.dataRepository.loadPublishedVariantState('default', variantKey);
+    this.stateSignal.set(this.normalizeLegacyPlayerLists(variantState ?? createInitialMapState()));
+  }
+
   resetUiState(): void {
     this.query.set('');
     this.selectedPlayerId.set(null);

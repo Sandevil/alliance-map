@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { toExternal } from '../../../core/domain';
 import { MapViewFacade } from '../../../core/facades/map-view.facade';
@@ -16,8 +16,15 @@ import { MapLegendComponent } from '../../../shared/components/map-legend/map-le
 })
 export class PublicMapPageComponent implements OnInit, OnDestroy {
   protected readonly facade = inject(MapViewFacade);
+  private readonly route = inject(ActivatedRoute);
 
   ngOnInit(): void {
+    const variantKey = this.route.snapshot.paramMap.get('variantKey')?.trim();
+    if (variantKey) {
+      void this.facade.reloadPublishedVariantState(variantKey);
+      return;
+    }
+
     void this.facade.reloadPublishedState();
   }
 

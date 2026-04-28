@@ -21,7 +21,7 @@ import {
   validatePlacement,
 } from '../domain';
 import { MAP_DATA_REPOSITORY } from './data/map-data.tokens';
-import { MapStateRevisionSummary } from './data/map-data.models';
+import { MapStateRevisionSummary, PublishedMapVariantSummary } from './data/map-data.models';
 import { MapDataRepository } from './data/map-data.repository';
 
 @Injectable({ providedIn: 'root' })
@@ -268,6 +268,22 @@ export class MapStateService {
   async listPublishedHistory(): Promise<MapStateRevisionSummary[]> {
     const revisions = await this.dataRepository.listRevisions(MapStateService.DEFAULT_MAP_ID, 'published');
     return revisions.filter((item) => item.eventType === 'publish');
+  }
+
+  async publishCurrentStateAsVariant(variantKey: string, label?: string): Promise<boolean> {
+    const state = this.cloneState();
+
+    await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state, 'draft');
+    await this.dataRepository.createRevision(MapStateService.DEFAULT_MAP_ID, state, `Variant source ${variantKey}`, {
+      stage: 'draft',
+      eventType: 'autosave',
+    });
+
+    return this.dataRepository.publishDraftVariant(MapStateService.DEFAULT_MAP_ID, variantKey, label);
+  }
+
+  async listPublishedVariants(): Promise<PublishedMapVariantSummary[]> {
+    return this.dataRepository.listPublishedVariants(MapStateService.DEFAULT_MAP_ID);
   }
 
   async restorePublishedRevisionToDraft(revisionId: string): Promise<boolean> {

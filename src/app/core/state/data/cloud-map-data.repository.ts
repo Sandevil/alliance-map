@@ -2,10 +2,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { MapState } from '../../domain';
 import { resolveRuntimeEnv } from '../../config/runtime-env';
 import { CreateRevisionOptions, MapDataRepository } from './map-data.repository';
-import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary } from './map-data.models';
+import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary, PublishedMapVariantSummary } from './map-data.models';
 
 export class CloudMapDataRepository implements MapDataRepository {
   private static readonly DEFAULT_STAGE: MapStage = 'published';
+  private static readonly VARIANT_PREFIX = 'variant:';
   private readonly supabase: SupabaseClient | null;
 
   constructor() {
@@ -45,6 +46,28 @@ export class CloudMapDataRepository implements MapDataRepository {
     }
 
     return row.state;
+  }
+
+  async loadPublishedVariantState(mapId: string, variantKey: string): Promise<MapState | null> {
+    const normalizedKey = variantKey.trim().toLowerCase();
+    if (!normalizedKey || !this.supabase) {
+      return null;
+    }
+
+    const { data, error } = await this.supabase
+      .from('map_variants')
+      .select('map_states!inner(state)')
+      .eq('map_name', mapId)
+      .eq('variant_key', normalizedKey)
+      .maybeSingle();
+
+    const joinedState = (data as { map_states?: Array<{ state?: MapState }> } | null)?.map_states?.[0]?.state;
+    if (!error && joinedState) {
+      return joinedState;
+    }
+
+    const row = await this.findMapStateRow(this.composeVariantMapId(mapId, normalizedKey), 'published', false);
+    return row?.state ?? null;
   }
 
   async saveCurrentState(
@@ -104,6 +127,98 @@ export class CloudMapDataRepository implements MapDataRepository {
     });
 
     return true;
+  }
+
+  async publishDraftVariant(mapId: string, variantKey: string, label?: string): Promise<boolean> {
+    const normalizedKey = variantKey.trim().toLowerCase();
+    if (!normalizedKey || !this.supabase) {
+      return false;
+    }
+
+    const draftRow = await this.findMapStateRow(mapId, 'draft', false);
+    if (!draftRow) {
+      return false;
+    }
+
+    const note = `Variant ${normalizedKey}${label?.trim() ? ` (${label.trim()})` : ''}`;
+
+    await this.saveCurrentState(mapId, draftRow.state, 'published');
+    const revision = await this.createRevision(mapId, draftRow.state, note, {
+      stage: 'published',
+      eventType: 'publish',
+    });
+
+    const publishedRow = await this.findMapStateRow(mapId, 'published', false);
+    if (publishedRow) {
+      const { error: upsertError } = await this.supabase
+        .from('map_variants')
+        .upsert(
+          {
+            map_name: mapId,
+            variant_key: normalizedKey,
+            label: label?.trim() || null,
+            map_state_id: publishedRow.id,
+            revision_id: revision.id,
+          },
+          { onConflict: 'map_name,variant_key' },
+        );
+
+      if (!upsertError) {
+        return true;
+      }
+      console.error('[CloudMapDataRepository] Failed upsert into map_variants, using fallback map name convention', upsertError);
+    }
+
+    const variantMapId = this.composeVariantMapId(mapId, normalizedKey);
+    await this.saveCurrentState(variantMapId, draftRow.state, 'published');
+
+    return true;
+  }
+
+  async listPublishedVariants(mapId: string): Promise<PublishedMapVariantSummary[]> {
+    if (!this.supabase) {
+      return [];
+    }
+
+    const { data, error } = await this.supabase
+      .from('map_variants')
+      .select('id, map_name, variant_key, label, revision_id, created_at')
+      .eq('map_name', mapId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      return data.map((item) => ({
+        id: item.id,
+        mapId: item.map_name,
+        variantKey: item.variant_key,
+        createdAt: item.created_at,
+        label: item.label ?? undefined,
+        revisionId: item.revision_id ?? undefined,
+      }));
+    }
+
+    const variantPrefix = this.composeVariantMapId(mapId, '');
+    const { data: fallbackData, error: fallbackError } = await this.supabase
+      .from('map_states')
+      .select('id, name, updated_at')
+      .eq('stage', 'published')
+      .like('name', `${variantPrefix}%`)
+      .order('updated_at', { ascending: false });
+
+    if (fallbackError || !fallbackData) {
+      console.error('[CloudMapDataRepository] Failed to list published variants', fallbackError);
+      return [];
+    }
+
+    return fallbackData.map((item) => {
+      const variantKey = (item.name as string).slice(variantPrefix.length);
+      return {
+        id: item.id,
+        mapId,
+        variantKey,
+        createdAt: item.updated_at,
+      };
+    });
   }
 
   async createRevision(
@@ -397,6 +512,10 @@ export class CloudMapDataRepository implements MapDataRepository {
     }
 
     return undefined;
+  }
+
+  private composeVariantMapId(mapId: string, variantKey: string): string {
+    return `${mapId}${CloudMapDataRepository.VARIANT_PREFIX}${variantKey}`;
   }
 
 }

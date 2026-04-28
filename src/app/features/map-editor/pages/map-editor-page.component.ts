@@ -33,7 +33,7 @@ import {
 } from '../../../core/domain';
 import { AdminSessionService } from '../../../core/auth/admin-session.service';
 import { MapStateService } from '../../../core/state/map-state.service';
-import { MapStateRevisionSummary } from '../../../core/state/data/map-data.models';
+import { MapStateRevisionSummary, PublishedMapVariantSummary } from '../../../core/state/data/map-data.models';
 import { MapLegendComponent } from '../../../shared/components/map-legend/map-legend.component';
 
 type DragPlayerData = {
@@ -163,6 +163,9 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   readonly isHistoryLoading = signal(false);
   readonly restoringRevisionId = signal<string | null>(null);
   readonly publishedHistory = signal<MapStateRevisionSummary[]>([]);
+  readonly isVariantDialogOpen = signal(false);
+  readonly isVariantPublishing = signal(false);
+  readonly publishedVariants = signal<PublishedMapVariantSummary[]>([]);
   readonly editingPlayerId = signal<string | null>(null);
 
   readonly gridCells = computed(() => {
@@ -199,6 +202,8 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   externalAnchorInternalY = this.mapStateService.snapshot.settings.externalReference.anchorInternal.y;
   externalAnchorExternalX = this.mapStateService.snapshot.settings.externalReference.anchorExternal.x;
   externalAnchorExternalY = this.mapStateService.snapshot.settings.externalReference.anchorExternal.y;
+  variantKeyInput = '';
+  variantLabelInput = '';
 
   private panzoom?: PanzoomObject;
   private initialPanTimeoutId?: number;
@@ -641,6 +646,48 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     await this.reloadPublishedHistory();
   }
 
+  async openVariantDialogFromSettings(): Promise<void> {
+    this.closeSettingsMenu();
+    this.isVariantDialogOpen.set(true);
+    await this.reloadPublishedVariants();
+  }
+
+  closeVariantDialog(): void {
+    this.isVariantDialogOpen.set(false);
+  }
+
+  async publishVariantFromDialog(): Promise<void> {
+    const key = this.variantKeyInput.trim().toLowerCase();
+    if (!key || this.isVariantPublishing()) {
+      return;
+    }
+
+    this.isVariantPublishing.set(true);
+    try {
+      const ok = await this.mapStateService.publishCurrentStateAsVariant(key, this.variantLabelInput.trim() || undefined);
+      this.feedback.set(ok ? `Variant published: ${key}` : 'Variant publish failed.');
+      if (ok) {
+        this.variantKeyInput = '';
+        this.variantLabelInput = '';
+        await this.reloadPublishedVariants();
+      }
+    } catch {
+      this.feedback.set('Variant publish failed.');
+    } finally {
+      this.isVariantPublishing.set(false);
+    }
+  }
+
+  async copyVariantLink(variantKey: string): Promise<void> {
+    const url = `${window.location.origin}/map/v/${encodeURIComponent(variantKey)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.feedback.set('Variant link copied.');
+    } catch {
+      this.feedback.set(url);
+    }
+  }
+
   closeHistoryDialog(): void {
     this.isHistoryDialogOpen.set(false);
   }
@@ -938,6 +985,11 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (this.isVariantDialogOpen()) {
+      this.closeVariantDialog();
+      return;
+    }
+
     if (this.isSettingsMenuOpen()) {
       this.closeSettingsMenu();
       return;
@@ -1085,6 +1137,11 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     } finally {
       this.isHistoryLoading.set(false);
     }
+  }
+
+  private async reloadPublishedVariants(): Promise<void> {
+    const variants = await this.mapStateService.listPublishedVariants();
+    this.publishedVariants.set(variants);
   }
 
   private parsePlayersPayload(content: string, fileName: string): Array<{ name: string; power: number; targetGeneralList?: GeneralPlayerListKey }> {

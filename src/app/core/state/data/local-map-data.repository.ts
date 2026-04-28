@@ -1,6 +1,6 @@
 import { MapState } from '../../domain';
 import { CreateRevisionOptions, MapDataRepository } from './map-data.repository';
-import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary } from './map-data.models';
+import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary, PublishedMapVariantSummary } from './map-data.models';
 
 type CurrentStateRecord = {
   mapId: string;
@@ -17,6 +17,7 @@ export class LocalMapDataRepository implements MapDataRepository {
 
   private static readonly LS_CURRENT_PREFIX = 'alliance-map.current.';
   private static readonly LS_REVISIONS_PREFIX = 'alliance-map.revisions.';
+  private static readonly LS_VARIANTS_PREFIX = 'alliance-map.variants.';
 
   private databasePromise?: Promise<IDBDatabase | null>;
 
@@ -39,6 +40,13 @@ export class LocalMapDataRepository implements MapDataRepository {
     } catch {
       return null;
     }
+  }
+
+  async loadPublishedVariantState(mapId: string, variantKey: string): Promise<MapState | null> {
+    const variants = this.readLocalVariants(mapId);
+    const normalizedKey = variantKey.trim().toLowerCase();
+    const found = variants.find((item) => item.variantKey.toLowerCase() === normalizedKey);
+    return found ? structuredClone(found.state) : null;
   }
 
   async saveCurrentState(
@@ -74,6 +82,57 @@ export class LocalMapDataRepository implements MapDataRepository {
       eventType: 'publish',
     });
     return true;
+  }
+
+  async publishDraftVariant(mapId: string, variantKey: string, label?: string): Promise<boolean> {
+    const normalizedKey = variantKey.trim().toLowerCase();
+    if (!normalizedKey) {
+      return false;
+    }
+
+    const draftState = await this.loadCurrentState(mapId, 'draft');
+    if (!draftState) {
+      return false;
+    }
+
+    const variants = this.readLocalVariants(mapId);
+    const now = new Date().toISOString();
+    const existingIndex = variants.findIndex((item) => item.variantKey.toLowerCase() === normalizedKey);
+    const entry = {
+      id: existingIndex >= 0 ? variants[existingIndex].id : `variant-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+      mapId,
+      variantKey: normalizedKey,
+      createdAt: now,
+      label: label?.trim() || undefined,
+      revisionId: undefined as string | undefined,
+      state: structuredClone(draftState),
+    };
+
+    const revision = await this.createRevision(mapId, draftState, `Variant ${normalizedKey}${label ? ` (${label})` : ''}`, {
+      stage: 'published',
+      eventType: 'publish',
+    });
+    entry.revisionId = revision.id;
+
+    if (existingIndex >= 0) {
+      variants[existingIndex] = entry;
+    } else {
+      variants.unshift(entry);
+    }
+
+    this.writeLocalVariants(mapId, variants);
+    return true;
+  }
+
+  async listPublishedVariants(mapId: string): Promise<PublishedMapVariantSummary[]> {
+    return this.readLocalVariants(mapId).map((item) => ({
+      id: item.id,
+      mapId: item.mapId,
+      variantKey: item.variantKey,
+      createdAt: item.createdAt,
+      label: item.label,
+      revisionId: item.revisionId,
+    }));
   }
 
   async createRevision(
@@ -227,6 +286,24 @@ export class LocalMapDataRepository implements MapDataRepository {
 
   private writeLocalRevisions(mapId: string, revisions: MapStateRevisionRecord[]): void {
     this.safeLocalStorageSet(`${LocalMapDataRepository.LS_REVISIONS_PREFIX}${mapId}`, JSON.stringify(revisions));
+  }
+
+  private readLocalVariants(mapId: string): Array<PublishedMapVariantSummary & { state: MapState }> {
+    const raw = this.safeLocalStorageGet(`${LocalMapDataRepository.LS_VARIANTS_PREFIX}${mapId}`);
+    if (!raw) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? (parsed as Array<PublishedMapVariantSummary & { state: MapState }>) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private writeLocalVariants(mapId: string, variants: Array<PublishedMapVariantSummary & { state: MapState }>): void {
+    this.safeLocalStorageSet(`${LocalMapDataRepository.LS_VARIANTS_PREFIX}${mapId}`, JSON.stringify(variants));
   }
 
   private toSummary(revision: MapStateRevisionRecord): MapStateRevisionSummary {

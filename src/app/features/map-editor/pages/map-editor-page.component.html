@@ -71,6 +71,10 @@
                 <span class="material-symbols-outlined">history</span>
                 <span>Publication history</span>
               </button>
+              <button type="button" role="menuitem" (click)="openVariantDialogFromSettings()">
+                <span class="material-symbols-outlined">share</span>
+                <span>Publish variant link</span>
+              </button>
               <button type="button" role="menuitem" (click)="resetMapStateFromSettings()">
                 <span class="material-symbols-outlined">restart_alt</span>
                 <span>Reset map</span>
@@ -374,6 +378,38 @@
           }
         </div>
       }
+    </section>
+  }
+
+  @if (isVariantDialogOpen()) {
+    <div class="dialog-backdrop" (click)="closeVariantDialog()"></div>
+    <section class="dialog dialog--history" role="dialog" aria-modal="true" aria-label="Publish variant dialog">
+      <header class="dialog__header">
+        <h2>Publish Variant Link</h2>
+        <button type="button" (click)="closeVariantDialog()" aria-label="Close publish variant dialog">×</button>
+      </header>
+
+      <form class="player-form" (ngSubmit)="publishVariantFromDialog()">
+        <input type="text" name="variantKey" [(ngModel)]="variantKeyInput" placeholder="variant key (example: trap1-a)" />
+        <input type="text" name="variantLabel" [(ngModel)]="variantLabelInput" placeholder="optional label" />
+        <button type="submit" [disabled]="isVariantPublishing() || !variantKeyInput.trim()">
+          {{ isVariantPublishing() ? 'Publishing...' : 'Publish variant' }}
+        </button>
+      </form>
+
+      <div class="history-list">
+        @for (variant of publishedVariants(); track variant.id) {
+          <article class="history-item">
+            <div class="history-item__meta">
+              <strong>{{ variant.variantKey }}</strong>
+              <small>{{ variant.label || ('Published ' + (variant.createdAt | date: 'yyyy-MM-dd HH:mm')) }}</small>
+            </div>
+            <button type="button" (click)="copyVariantLink(variant.variantKey)">Copy link</button>
+          </article>
+        } @empty {
+          <p class="empty">No variants published yet.</p>
+        }
+      </div>
     </section>
   }
 </main>

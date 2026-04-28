@@ -6,6 +6,10 @@ import { adminAuthGuard } from './core/auth/admin-auth.guard';
 
 export const routes: Routes = [
   {
+    path: 'map/v/:variantKey',
+    component: PublicMapPageComponent,
+  },
+  {
     path: '',
     component: PublicMapPageComponent,
   },
