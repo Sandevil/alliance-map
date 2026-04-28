@@ -33,6 +33,7 @@ import {
 } from '../../../core/domain';
 import { AdminSessionService } from '../../../core/auth/admin-session.service';
 import { MapStateService } from '../../../core/state/map-state.service';
+import { MapStateRevisionSummary } from '../../../core/state/data/map-data.models';
 import { MapLegendComponent } from '../../../shared/components/map-legend/map-legend.component';
 
 type DragPlayerData = {
@@ -158,6 +159,10 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   readonly isExternalReferenceDialogOpen = signal(false);
   readonly isSettingsMenuOpen = signal(false);
   readonly isPublishing = signal(false);
+  readonly isHistoryDialogOpen = signal(false);
+  readonly isHistoryLoading = signal(false);
+  readonly restoringRevisionId = signal<string | null>(null);
+  readonly publishedHistory = signal<MapStateRevisionSummary[]>([]);
   readonly editingPlayerId = signal<string | null>(null);
 
   readonly gridCells = computed(() => {
@@ -630,6 +635,40 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  async openHistoryDialogFromSettings(): Promise<void> {
+    this.closeSettingsMenu();
+    this.isHistoryDialogOpen.set(true);
+    await this.reloadPublishedHistory();
+  }
+
+  closeHistoryDialog(): void {
+    this.isHistoryDialogOpen.set(false);
+  }
+
+  async restoreRevisionToDraft(revisionId: string): Promise<void> {
+    if (this.restoringRevisionId()) {
+      return;
+    }
+
+    this.restoringRevisionId.set(revisionId);
+    try {
+      const restored = await this.mapStateService.restorePublishedRevisionToDraft(revisionId);
+      this.feedback.set(restored ? 'Published revision restored to draft.' : 'Revision not found.');
+      if (restored) {
+        await this.reloadPublishedHistory();
+        this.closeHistoryDialog();
+      }
+    } catch {
+      this.feedback.set('Restore failed.');
+    } finally {
+      this.restoringRevisionId.set(null);
+    }
+  }
+
+  isRestoringRevision(revisionId: string): boolean {
+    return this.restoringRevisionId() === revisionId;
+  }
+
   closeSidebar(): void {
     this.isSidebarOpen.set(false);
   }
@@ -894,6 +933,11 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (this.isHistoryDialogOpen()) {
+      this.closeHistoryDialog();
+      return;
+    }
+
     if (this.isSettingsMenuOpen()) {
       this.closeSettingsMenu();
       return;
@@ -1031,6 +1075,16 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     };
 
     return codes.map((code) => labels[code] ?? code).join(' ');
+  }
+
+  private async reloadPublishedHistory(): Promise<void> {
+    this.isHistoryLoading.set(true);
+    try {
+      const history = await this.mapStateService.listPublishedHistory();
+      this.publishedHistory.set(history);
+    } finally {
+      this.isHistoryLoading.set(false);
+    }
   }
 
   private parsePlayersPayload(content: string, fileName: string): Array<{ name: string; power: number; targetGeneralList?: GeneralPlayerListKey }> {

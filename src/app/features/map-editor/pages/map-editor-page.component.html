@@ -67,6 +67,10 @@
                 <span class="material-symbols-outlined">publish</span>
                 <span>{{ isPublishing() ? 'Publishing...' : 'Publish map' }}</span>
               </button>
+              <button type="button" role="menuitem" (click)="openHistoryDialogFromSettings()">
+                <span class="material-symbols-outlined">history</span>
+                <span>Publication history</span>
+              </button>
               <button type="button" role="menuitem" (click)="resetMapStateFromSettings()">
                 <span class="material-symbols-outlined">restart_alt</span>
                 <span>Reset map</span>
@@ -337,6 +341,39 @@
         </label>
         <button type="submit">Apply Reference</button>
       </form>
+    </section>
+  }
+
+  @if (isHistoryDialogOpen()) {
+    <div class="dialog-backdrop" (click)="closeHistoryDialog()"></div>
+    <section class="dialog dialog--history" role="dialog" aria-modal="true" aria-label="Publication history dialog">
+      <header class="dialog__header">
+        <h2>Publication History</h2>
+        <button type="button" (click)="closeHistoryDialog()" aria-label="Close publication history dialog">×</button>
+      </header>
+
+      @if (isHistoryLoading()) {
+        <p>Loading history...</p>
+      } @else {
+        <div class="history-list">
+          @for (revision of publishedHistory(); track revision.id) {
+            <article class="history-item">
+              <div class="history-item__meta">
+                <strong>{{ revision.createdAt | date: 'yyyy-MM-dd HH:mm' }}</strong>
+                <small>{{ revision.note || 'Manual publish' }}</small>
+              </div>
+              <button
+                type="button"
+                [disabled]="isRestoringRevision(revision.id)"
+                (click)="restoreRevisionToDraft(revision.id)">
+                {{ isRestoringRevision(revision.id) ? 'Restoring...' : 'Restore to draft' }}
+              </button>
+            </article>
+          } @empty {
+            <p class="empty">No published revisions yet.</p>
+          }
+        </div>
+      }
     </section>
   }
 </main>

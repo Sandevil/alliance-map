@@ -21,6 +21,7 @@ import {
   validatePlacement,
 } from '../domain';
 import { MAP_DATA_REPOSITORY } from './data/map-data.tokens';
+import { MapStateRevisionSummary } from './data/map-data.models';
 import { MapDataRepository } from './data/map-data.repository';
 
 @Injectable({ providedIn: 'root' })
@@ -262,6 +263,27 @@ export class MapStateService {
     });
 
     return this.dataRepository.publishDraft(MapStateService.DEFAULT_MAP_ID, note);
+  }
+
+  async listPublishedHistory(): Promise<MapStateRevisionSummary[]> {
+    const revisions = await this.dataRepository.listRevisions(MapStateService.DEFAULT_MAP_ID, 'published');
+    return revisions.filter((item) => item.eventType === 'publish');
+  }
+
+  async restorePublishedRevisionToDraft(revisionId: string): Promise<boolean> {
+    const revision = await this.dataRepository.loadRevision(MapStateService.DEFAULT_MAP_ID, revisionId, 'published');
+    if (!revision) {
+      return false;
+    }
+
+    await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, revision.state, 'draft');
+    await this.dataRepository.createRevision(MapStateService.DEFAULT_MAP_ID, revision.state, `Restored from publish ${revision.id}`, {
+      stage: 'draft',
+      eventType: 'restore',
+    });
+
+    this.stateSubject.next(structuredClone(revision.state));
+    return true;
   }
 
   updatePlayer(playerId: string, patch: { name: string; power: number }): RuleValidationResult {
