@@ -6,6 +6,14 @@ import { MapDataRepository } from '../state/data/map-data.repository';
 import { MapViewFacade } from './map-view.facade';
 
 class MapViewLegacyRepositoryStub implements MapDataRepository {
+  async loadAppSetting(): Promise<null> {
+    return null;
+  }
+
+  async saveAppSetting(): Promise<void> {
+    return;
+  }
+
   async loadCurrentState(): Promise<MapState | null> {
     const legacy = createInitialMapState() as unknown as {
       players: Record<string, unknown>;
@@ -22,6 +30,18 @@ class MapViewLegacyRepositoryStub implements MapDataRepository {
 
   async publishDraft(): Promise<boolean> {
     return false;
+  }
+
+  async loadPublishedVariantState(): Promise<MapState | null> {
+    return null;
+  }
+
+  async publishDraftVariant(): Promise<boolean> {
+    return false;
+  }
+
+  async listPublishedVariants(): Promise<never[]> {
+    return [];
   }
 
   async createRevision() {

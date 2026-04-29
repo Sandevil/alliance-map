@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
-import { resolveRuntimeEnv } from '../config/runtime-env';
+import { inject, Injectable } from '@angular/core';
+import { MAP_DATA_REPOSITORY } from '../state/data/map-data.tokens';
+import { MapDataRepository } from '../state/data/map-data.repository';
 
 @Injectable({ providedIn: 'root' })
 export class AdminSessionService {
@@ -9,6 +10,8 @@ export class AdminSessionService {
   private static readonly LOCK_UNTIL_KEY = 'alliance-map.admin.lock-until.v1';
   private static readonly MAX_FAILED_ATTEMPTS = 5;
   private static readonly LOCK_DURATION_MS = 60_000;
+  private static readonly ADMIN_PASSWORD_SETTING_KEY = 'admin_password';
+  private readonly dataRepository = inject(MAP_DATA_REPOSITORY) as MapDataRepository;
 
   isAuthenticated(): boolean {
     if (typeof window === 'undefined') {
@@ -18,12 +21,12 @@ export class AdminSessionService {
     return window.sessionStorage.getItem(AdminSessionService.SESSION_KEY) === '1';
   }
 
-  login(password: string): boolean {
+  async login(password: string): Promise<boolean> {
     if (this.isLocked()) {
       return false;
     }
 
-    const expectedPassword = this.resolveAdminPassword();
+    const expectedPassword = await this.resolveAdminPassword();
     const isValid = password === expectedPassword;
 
     if (!isValid || typeof window === 'undefined') {
@@ -71,10 +74,11 @@ export class AdminSessionService {
     window.sessionStorage.removeItem(AdminSessionService.SESSION_KEY);
   }
 
-  private resolveAdminPassword(): string {
-    const runtimePassword = resolveRuntimeEnv().adminPassword;
-    if (runtimePassword) {
-      return runtimePassword;
+  private async resolveAdminPassword(): Promise<string> {
+    const setting = await this.dataRepository.loadAppSetting(AdminSessionService.ADMIN_PASSWORD_SETTING_KEY);
+    const value = setting?.value?.trim();
+    if (value) {
+      return value;
     }
 
     return AdminSessionService.FALLBACK_PASSWORD;

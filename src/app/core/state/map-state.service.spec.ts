@@ -9,6 +9,14 @@ import { MapStateService } from './map-state.service';
 class InMemoryMapDataRepository implements MapDataRepository {
   private current = new Map<string, MapState>();
 
+  async loadAppSetting(_key: string) {
+    return null;
+  }
+
+  async saveAppSetting(_key: string, _value: string): Promise<void> {
+    return;
+  }
+
   async loadCurrentState(mapId: string, _stage?: MapStage): Promise<MapState | null> {
     return this.current.get(mapId) ?? null;
   }
@@ -19,6 +27,18 @@ class InMemoryMapDataRepository implements MapDataRepository {
 
   async publishDraft(_mapId: string, _note?: string): Promise<boolean> {
     return false;
+  }
+
+  async loadPublishedVariantState(_mapId: string, _variantKey: string): Promise<MapState | null> {
+    return null;
+  }
+
+  async publishDraftVariant(_mapId: string, _variantKey: string, _label?: string, _sourceVariantKey?: string | null): Promise<boolean> {
+    return false;
+  }
+
+  async listPublishedVariants(): Promise<never[]> {
+    return [];
   }
 
   async createRevision(

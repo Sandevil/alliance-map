@@ -29,11 +29,13 @@ export class MapStateService {
   private static readonly LEGACY_STORAGE_KEY = 'alliance-map.state.v1';
   private static readonly DEFAULT_MAP_ID = 'default';
   private static readonly EDIT_STAGE = 'draft' as const;
+  private static readonly ADMIN_PASSWORD_SETTING_KEY = 'admin_password';
 
   private readonly dataRepository = inject(MAP_DATA_REPOSITORY) as MapDataRepository;
 
   private readonly stateSubject = new BehaviorSubject<MapState>(createInitialMapState());
   private persistenceReady = false;
+  private activeDraftVariantKey: string | null = null;
 
   readonly state$ = this.stateSubject.asObservable();
 
@@ -50,8 +52,22 @@ export class MapStateService {
         return;
       }
 
-      void this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state, MapStateService.EDIT_STAGE);
+      void this.dataRepository.saveCurrentState(this.resolveActiveDraftMapId(), state, MapStateService.EDIT_STAGE);
     });
+  }
+
+  async setAdminPassword(password: string): Promise<void> {
+    await this.dataRepository.saveAppSetting(MapStateService.ADMIN_PASSWORD_SETTING_KEY, password);
+  }
+
+  setActiveDraftVariant(variantKey: string | null): void {
+    const normalized = variantKey?.trim().toLowerCase() || null;
+    this.activeDraftVariantKey = normalized;
+    void this.hydrateFromRepository();
+  }
+
+  getActiveDraftVariant(): string | null {
+    return this.activeDraftVariantKey;
   }
 
   get snapshot(): MapState {
@@ -255,12 +271,21 @@ export class MapStateService {
 
   async publishCurrentState(note?: string): Promise<boolean> {
     const state = this.cloneState();
+    const draftMapId = this.resolveActiveDraftMapId();
 
-    await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state, 'draft');
-    await this.dataRepository.createRevision(MapStateService.DEFAULT_MAP_ID, state, note, {
+    await this.dataRepository.saveCurrentState(draftMapId, state, 'draft');
+    await this.dataRepository.createRevision(draftMapId, state, note, {
       stage: 'draft',
       eventType: 'autosave',
     });
+
+    if (draftMapId !== MapStateService.DEFAULT_MAP_ID) {
+      await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state, 'draft');
+      await this.dataRepository.createRevision(MapStateService.DEFAULT_MAP_ID, state, note, {
+        stage: 'draft',
+        eventType: 'autosave',
+      });
+    }
 
     return this.dataRepository.publishDraft(MapStateService.DEFAULT_MAP_ID, note);
   }
@@ -272,14 +297,52 @@ export class MapStateService {
 
   async publishCurrentStateAsVariant(variantKey: string, label?: string): Promise<boolean> {
     const state = this.cloneState();
+    const sourceVariantKey = this.activeDraftVariantKey ?? variantKey;
+    const sourceDraftMapId = this.composeVariantDraftMapId(sourceVariantKey);
 
-    await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, state, 'draft');
-    await this.dataRepository.createRevision(MapStateService.DEFAULT_MAP_ID, state, `Variant source ${variantKey}`, {
+    await this.dataRepository.saveCurrentState(sourceDraftMapId, state, 'draft');
+    await this.dataRepository.createRevision(sourceDraftMapId, state, `Variant source ${variantKey}`, {
       stage: 'draft',
       eventType: 'autosave',
     });
 
-    return this.dataRepository.publishDraftVariant(MapStateService.DEFAULT_MAP_ID, variantKey, label);
+    return this.dataRepository.publishDraftVariant(MapStateService.DEFAULT_MAP_ID, variantKey, label, sourceVariantKey);
+  }
+
+  async saveNamedSnapshot(name: string): Promise<boolean> {
+    const snapshotName = name.trim();
+    if (!snapshotName) {
+      return false;
+    }
+
+    const state = this.cloneState();
+    const draftMapId = this.resolveActiveDraftMapId();
+    await this.dataRepository.saveCurrentState(draftMapId, state, 'draft');
+    await this.dataRepository.createRevision(draftMapId, state, `Snapshot ${snapshotName}`, {
+      stage: 'draft',
+      eventType: 'snapshot',
+      snapshotName,
+    });
+
+    return true;
+  }
+
+  async listDraftSnapshots(): Promise<MapStateRevisionSummary[]> {
+    const draftMapId = this.resolveActiveDraftMapId();
+    const revisions = await this.dataRepository.listRevisions(draftMapId, 'draft');
+    return revisions.filter((item) => item.eventType === 'snapshot');
+  }
+
+  async restoreDraftSnapshot(revisionId: string): Promise<boolean> {
+    const draftMapId = this.resolveActiveDraftMapId();
+    const revision = await this.dataRepository.loadRevision(draftMapId, revisionId, 'draft');
+    if (!revision) {
+      return false;
+    }
+
+    await this.dataRepository.saveCurrentState(draftMapId, revision.state, 'draft');
+    this.stateSubject.next(structuredClone(revision.state));
+    return true;
   }
 
   async listPublishedVariants(): Promise<PublishedMapVariantSummary[]> {
@@ -457,7 +520,8 @@ export class MapStateService {
   }
 
   private async hydrateFromRepository(): Promise<void> {
-    const draftState = await this.dataRepository.loadCurrentState(MapStateService.DEFAULT_MAP_ID, 'draft');
+    const draftMapId = this.resolveActiveDraftMapId();
+    const draftState = await this.dataRepository.loadCurrentState(draftMapId, 'draft');
     const publishedState = draftState
       ? null
       : await this.dataRepository.loadCurrentState(MapStateService.DEFAULT_MAP_ID, 'published');
@@ -475,8 +539,20 @@ export class MapStateService {
     this.stateSubject.next(validation.state);
 
     if (!draftState) {
-      await this.dataRepository.saveCurrentState(MapStateService.DEFAULT_MAP_ID, validation.state, 'draft');
+      await this.dataRepository.saveCurrentState(draftMapId, validation.state, 'draft');
     }
+  }
+
+  private resolveActiveDraftMapId(): string {
+    if (!this.activeDraftVariantKey) {
+      return MapStateService.DEFAULT_MAP_ID;
+    }
+
+    return this.composeVariantDraftMapId(this.activeDraftVariantKey);
+  }
+
+  private composeVariantDraftMapId(variantKey: string): string {
+    return `${MapStateService.DEFAULT_MAP_ID}variant:${variantKey}`;
   }
 
   private hydrateFromLegacyStorage(): unknown {

@@ -390,12 +390,39 @@
       </header>
 
       <form class="player-form" (ngSubmit)="publishVariantFromDialog()">
+        <input type="text" name="activeDraftVariant" [(ngModel)]="activeDraftVariantInput" placeholder="active draft variant key (optional)" />
+        <button type="button" (click)="applyActiveDraftVariantFromDialog()">Use this draft</button>
         <input type="text" name="variantKey" [(ngModel)]="variantKeyInput" placeholder="variant key (example: trap1-a)" />
         <input type="text" name="variantLabel" [(ngModel)]="variantLabelInput" placeholder="optional label" />
         <button type="submit" [disabled]="isVariantPublishing() || !variantKeyInput.trim()">
           {{ isVariantPublishing() ? 'Publishing...' : 'Publish variant' }}
         </button>
       </form>
+
+      <form class="player-form" (ngSubmit)="saveSnapshotFromDialog()">
+        <input type="text" name="snapshotName" [(ngModel)]="snapshotNameInput" placeholder="snapshot name" />
+        <button type="submit" [disabled]="!snapshotNameInput.trim()">Save draft snapshot</button>
+      </form>
+
+      <div class="history-list">
+        @if (isDraftSnapshotsLoading()) {
+          <p>Loading draft snapshots...</p>
+        } @else {
+          @for (snapshot of draftSnapshots(); track snapshot.id) {
+            <article class="history-item">
+              <div class="history-item__meta">
+                <strong>{{ snapshot.snapshotName || snapshot.note || 'Snapshot' }}</strong>
+                <small>{{ snapshot.createdAt | date: 'yyyy-MM-dd HH:mm' }}</small>
+              </div>
+              <button type="button" [disabled]="isRestoringDraftSnapshot(snapshot.id)" (click)="restoreDraftSnapshotFromDialog(snapshot.id)">
+                {{ isRestoringDraftSnapshot(snapshot.id) ? 'Restoring...' : 'Resume draft' }}
+              </button>
+            </article>
+          } @empty {
+            <p class="empty">No draft snapshots yet.</p>
+          }
+        }
+      </div>
 
       <div class="history-list">
         @for (variant of publishedVariants(); track variant.id) {

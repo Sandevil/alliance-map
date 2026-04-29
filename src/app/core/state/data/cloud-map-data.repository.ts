@@ -2,7 +2,14 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { MapState } from '../../domain';
 import { resolveRuntimeEnv } from '../../config/runtime-env';
 import { CreateRevisionOptions, MapDataRepository } from './map-data.repository';
-import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary, PublishedMapVariantSummary } from './map-data.models';
+import {
+  AppSettingRecord,
+  MapRevisionEventType,
+  MapStage,
+  MapStateRevisionRecord,
+  MapStateRevisionSummary,
+  PublishedMapVariantSummary,
+} from './map-data.models';
 
 export class CloudMapDataRepository implements MapDataRepository {
   private static readonly DEFAULT_STAGE: MapStage = 'published';
@@ -24,6 +31,35 @@ export class CloudMapDataRepository implements MapDataRepository {
         detectSessionInUrl: false,
       },
     });
+  }
+
+  async loadAppSetting(key: string): Promise<AppSettingRecord | null> {
+    if (!this.supabase) {
+      return null;
+    }
+
+    const { data, error } = await this.supabase
+      .from('app_settings')
+      .select('key, value, updated_at')
+      .eq('key', key)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return { key: data.key, value: data.value, updatedAt: data.updated_at ?? undefined };
+  }
+
+  async saveAppSetting(key: string, value: string): Promise<void> {
+    if (!this.supabase) {
+      return;
+    }
+
+    const { error } = await this.supabase.from('app_settings').upsert({ key, value }, { onConflict: 'key' });
+    if (error) {
+      console.error('[CloudMapDataRepository] Failed to save app setting', error);
+    }
   }
 
   async loadCurrentState(mapId: string, stage: MapStage = CloudMapDataRepository.DEFAULT_STAGE): Promise<MapState | null> {
@@ -129,13 +165,14 @@ export class CloudMapDataRepository implements MapDataRepository {
     return true;
   }
 
-  async publishDraftVariant(mapId: string, variantKey: string, label?: string): Promise<boolean> {
+  async publishDraftVariant(mapId: string, variantKey: string, label?: string, sourceVariantKey?: string | null): Promise<boolean> {
     const normalizedKey = variantKey.trim().toLowerCase();
     if (!normalizedKey || !this.supabase) {
       return false;
     }
 
-    const draftRow = await this.findMapStateRow(mapId, 'draft', false);
+    const draftMapId = this.composeVariantMapId(mapId, sourceVariantKey?.trim().toLowerCase() || normalizedKey);
+    const draftRow = await this.findMapStateRow(draftMapId, 'draft', false);
     if (!draftRow) {
       return false;
     }
@@ -143,7 +180,7 @@ export class CloudMapDataRepository implements MapDataRepository {
     const note = `Variant ${normalizedKey}${label?.trim() ? ` (${label.trim()})` : ''}`;
 
     await this.saveCurrentState(mapId, draftRow.state, 'published');
-    const revision = await this.createRevision(mapId, draftRow.state, note, {
+    const revision = await this.createRevision(draftMapId, draftRow.state, note, {
       stage: 'published',
       eventType: 'publish',
     });
@@ -229,14 +266,15 @@ export class CloudMapDataRepository implements MapDataRepository {
   ): Promise<MapStateRevisionSummary> {
     const stage = options?.stage ?? CloudMapDataRepository.DEFAULT_STAGE;
     const eventType = options?.eventType;
+    const snapshotName = options?.snapshotName;
 
     if (!this.supabase) {
-      return this.createFallbackSummary(mapId, state, note, stage, eventType);
+      return this.createFallbackSummary(mapId, state, note, stage, eventType, snapshotName);
     }
 
     const mapStateId = await this.ensureMapStateId(mapId, state, stage);
     if (!mapStateId) {
-      return this.createFallbackSummary(mapId, state, note, stage, eventType);
+      return this.createFallbackSummary(mapId, state, note, stage, eventType, snapshotName);
     }
 
     const payload: Record<string, unknown> = {
@@ -244,6 +282,7 @@ export class CloudMapDataRepository implements MapDataRepository {
       summary: note,
       stage,
       event_type: eventType,
+      snapshot_name: options?.snapshotName,
       state,
       schema_version: state.schemaVersion,
     };
@@ -251,12 +290,12 @@ export class CloudMapDataRepository implements MapDataRepository {
     const { data, error } = await this.supabase
       .from('map_revisions')
       .insert(payload)
-      .select('id, schema_version, created_at, summary, stage, event_type')
+      .select('id, schema_version, created_at, summary, stage, event_type, snapshot_name')
       .single();
 
     if (error || !data) {
       console.error('[CloudMapDataRepository] Failed to create revision', error);
-      return this.createFallbackSummary(mapId, state, note, stage, eventType);
+      return this.createFallbackSummary(mapId, state, note, stage, eventType, snapshotName);
     }
 
     return {
@@ -266,6 +305,7 @@ export class CloudMapDataRepository implements MapDataRepository {
       schemaVersion: Number(data.schema_version) || state.schemaVersion,
       createdAt: data.created_at,
       note: data.summary ?? undefined,
+      snapshotName: data.snapshot_name ?? undefined,
       eventType: this.normalizeEventType(data.event_type),
     };
   }
@@ -282,7 +322,7 @@ export class CloudMapDataRepository implements MapDataRepository {
 
     const { data, error } = await this.supabase
       .from('map_revisions')
-      .select('id, schema_version, created_at, summary, stage, event_type')
+      .select('id, schema_version, created_at, summary, stage, event_type, snapshot_name')
       .eq('map_state_id', mapStateRow.id)
       .order('created_at', { ascending: false });
 
@@ -298,6 +338,7 @@ export class CloudMapDataRepository implements MapDataRepository {
       schemaVersion: Number(item.schema_version) || 1,
       createdAt: item.created_at,
       note: item.summary ?? undefined,
+      snapshotName: item.snapshot_name ?? undefined,
       eventType: this.normalizeEventType(item.event_type),
     }));
   }
@@ -318,7 +359,7 @@ export class CloudMapDataRepository implements MapDataRepository {
 
     const { data, error } = await this.supabase
       .from('map_revisions')
-      .select('id, schema_version, created_at, summary, stage, event_type, state')
+      .select('id, schema_version, created_at, summary, stage, event_type, snapshot_name, state')
       .eq('id', revisionId)
       .eq('map_state_id', mapStateRow.id)
       .maybeSingle();
@@ -337,6 +378,7 @@ export class CloudMapDataRepository implements MapDataRepository {
       schemaVersion: Number(data.schema_version) || 1,
       createdAt: data.created_at,
       note: data.summary ?? undefined,
+      snapshotName: data.snapshot_name ?? undefined,
       eventType: this.normalizeEventType(data.event_type),
       state: data.state as MapState,
     };
@@ -490,6 +532,7 @@ export class CloudMapDataRepository implements MapDataRepository {
     note: string | undefined,
     stage: MapStage,
     eventType?: MapRevisionEventType,
+    snapshotName?: string,
   ): MapStateRevisionSummary {
     return {
       id: `cloud-fallback-${Date.now()}`,
@@ -498,6 +541,7 @@ export class CloudMapDataRepository implements MapDataRepository {
       schemaVersion: state.schemaVersion,
       createdAt: new Date().toISOString(),
       note,
+      snapshotName,
       eventType,
     };
   }
@@ -507,7 +551,7 @@ export class CloudMapDataRepository implements MapDataRepository {
   }
 
   private normalizeEventType(eventType: unknown): MapRevisionEventType | undefined {
-    if (eventType === 'autosave' || eventType === 'publish' || eventType === 'restore') {
+    if (eventType === 'autosave' || eventType === 'publish' || eventType === 'restore' || eventType === 'snapshot') {
       return eventType;
     }
 

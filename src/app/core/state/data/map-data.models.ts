@@ -2,7 +2,13 @@ import { MapState } from '../../domain';
 
 export type DataMode = 'local' | 'cloud';
 export type MapStage = 'published' | 'draft';
-export type MapRevisionEventType = 'autosave' | 'publish' | 'restore';
+export type MapRevisionEventType = 'autosave' | 'publish' | 'restore' | 'snapshot';
+
+export interface AppSettingRecord {
+  key: string;
+  value: string;
+  updatedAt?: string;
+}
 
 export interface PublishedMapVariantSummary {
   id: string;
@@ -20,6 +26,7 @@ export interface MapStateRevisionSummary {
   schemaVersion: number;
   createdAt: string;
   note?: string;
+  snapshotName?: string;
   eventType?: MapRevisionEventType;
 }
 

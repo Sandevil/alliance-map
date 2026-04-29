@@ -23,14 +23,14 @@ export class AdminLoginPageComponent implements OnDestroy {
     this.remainingLockSeconds.set(this.adminSession.getRemainingLockSeconds());
   }, 1000);
 
-  login(): void {
+  async login(): Promise<void> {
     if (this.adminSession.isLocked()) {
       this.remainingLockSeconds.set(this.adminSession.getRemainingLockSeconds());
       this.feedback.set(`Too many failed attempts. Try again in ${this.remainingLockSeconds()}s.`);
       return;
     }
 
-    const ok = this.adminSession.login(this.password);
+    const ok = await this.adminSession.login(this.password);
     if (!ok) {
       this.feedback.set('Invalid password.');
       return;

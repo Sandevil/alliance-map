@@ -1,6 +1,13 @@
 import { MapState } from '../../domain';
 import { CreateRevisionOptions, MapDataRepository } from './map-data.repository';
-import { MapRevisionEventType, MapStage, MapStateRevisionRecord, MapStateRevisionSummary, PublishedMapVariantSummary } from './map-data.models';
+import {
+  AppSettingRecord,
+  MapRevisionEventType,
+  MapStage,
+  MapStateRevisionRecord,
+  MapStateRevisionSummary,
+  PublishedMapVariantSummary,
+} from './map-data.models';
 
 type CurrentStateRecord = {
   mapId: string;
@@ -18,8 +25,22 @@ export class LocalMapDataRepository implements MapDataRepository {
   private static readonly LS_CURRENT_PREFIX = 'alliance-map.current.';
   private static readonly LS_REVISIONS_PREFIX = 'alliance-map.revisions.';
   private static readonly LS_VARIANTS_PREFIX = 'alliance-map.variants.';
+  private static readonly LS_SETTINGS_PREFIX = 'alliance-map.settings.';
 
   private databasePromise?: Promise<IDBDatabase | null>;
+
+  async loadAppSetting(key: string): Promise<AppSettingRecord | null> {
+    const value = this.safeLocalStorageGet(`${LocalMapDataRepository.LS_SETTINGS_PREFIX}${key}`);
+    if (value == null) {
+      return null;
+    }
+
+    return { key, value };
+  }
+
+  async saveAppSetting(key: string, value: string): Promise<void> {
+    this.safeLocalStorageSet(`${LocalMapDataRepository.LS_SETTINGS_PREFIX}${key}`, value);
+  }
 
   async loadCurrentState(mapId: string, stage: MapStage = LocalMapDataRepository.DEFAULT_STAGE): Promise<MapState | null> {
     const stateKey = this.composeCurrentStateKey(mapId, stage);
@@ -84,13 +105,13 @@ export class LocalMapDataRepository implements MapDataRepository {
     return true;
   }
 
-  async publishDraftVariant(mapId: string, variantKey: string, label?: string): Promise<boolean> {
+  async publishDraftVariant(mapId: string, variantKey: string, label?: string, sourceVariantKey?: string | null): Promise<boolean> {
     const normalizedKey = variantKey.trim().toLowerCase();
     if (!normalizedKey) {
       return false;
     }
 
-    const draftState = await this.loadCurrentState(mapId, 'draft');
+    const draftState = await this.loadCurrentState(this.composeDraftMapId(mapId, sourceVariantKey ?? normalizedKey), 'draft');
     if (!draftState) {
       return false;
     }
@@ -108,7 +129,7 @@ export class LocalMapDataRepository implements MapDataRepository {
       state: structuredClone(draftState),
     };
 
-    const revision = await this.createRevision(mapId, draftState, `Variant ${normalizedKey}${label ? ` (${label})` : ''}`, {
+    const revision = await this.createRevision(this.composeDraftMapId(mapId, sourceVariantKey ?? normalizedKey), draftState, `Variant ${normalizedKey}${label ? ` (${label})` : ''}`, {
       stage: 'published',
       eventType: 'publish',
     });
@@ -153,6 +174,7 @@ export class LocalMapDataRepository implements MapDataRepository {
       createdAt: now,
       note,
       eventType,
+      snapshotName: options?.snapshotName,
       state,
     };
 
@@ -314,6 +336,7 @@ export class LocalMapDataRepository implements MapDataRepository {
       schemaVersion: revision.schemaVersion,
       createdAt: revision.createdAt,
       note: revision.note,
+      snapshotName: revision.snapshotName,
       eventType: this.normalizeEventType(revision.eventType),
     };
   }
@@ -322,12 +345,17 @@ export class LocalMapDataRepository implements MapDataRepository {
     return `${mapId}::${stage}`;
   }
 
+  private composeDraftMapId(mapId: string, variantKey?: string | null): string {
+    const normalized = (variantKey ?? '').trim().toLowerCase();
+    return normalized ? `${mapId}variant:${normalized}` : mapId;
+  }
+
   private normalizeStage(stage: unknown): MapStage {
     return stage === 'draft' || stage === 'published' ? stage : LocalMapDataRepository.DEFAULT_STAGE;
   }
 
   private normalizeEventType(eventType: unknown): MapRevisionEventType | undefined {
-    if (eventType === 'autosave' || eventType === 'publish' || eventType === 'restore') {
+    if (eventType === 'autosave' || eventType === 'publish' || eventType === 'restore' || eventType === 'snapshot') {
       return eventType;
     }
 

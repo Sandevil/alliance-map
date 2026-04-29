@@ -166,6 +166,9 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   readonly isVariantDialogOpen = signal(false);
   readonly isVariantPublishing = signal(false);
   readonly publishedVariants = signal<PublishedMapVariantSummary[]>([]);
+  readonly isDraftSnapshotsLoading = signal(false);
+  readonly draftSnapshots = signal<MapStateRevisionSummary[]>([]);
+  readonly restoringDraftSnapshotId = signal<string | null>(null);
   readonly editingPlayerId = signal<string | null>(null);
 
   readonly gridCells = computed(() => {
@@ -204,6 +207,8 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   externalAnchorExternalY = this.mapStateService.snapshot.settings.externalReference.anchorExternal.y;
   variantKeyInput = '';
   variantLabelInput = '';
+  activeDraftVariantInput = '';
+  snapshotNameInput = '';
 
   private panzoom?: PanzoomObject;
   private initialPanTimeoutId?: number;
@@ -648,8 +653,10 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
 
   async openVariantDialogFromSettings(): Promise<void> {
     this.closeSettingsMenu();
+    this.activeDraftVariantInput = this.mapStateService.getActiveDraftVariant() ?? '';
     this.isVariantDialogOpen.set(true);
     await this.reloadPublishedVariants();
+    await this.reloadDraftSnapshots();
   }
 
   closeVariantDialog(): void {
@@ -670,6 +677,7 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
         this.variantKeyInput = '';
         this.variantLabelInput = '';
         await this.reloadPublishedVariants();
+        await this.reloadDraftSnapshots();
       }
     } catch {
       this.feedback.set('Variant publish failed.');
@@ -686,6 +694,40 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.feedback.set(url);
     }
+  }
+
+  async applyActiveDraftVariantFromDialog(): Promise<void> {
+    const key = this.activeDraftVariantInput.trim().toLowerCase() || null;
+    this.mapStateService.setActiveDraftVariant(key);
+    this.feedback.set(key ? `Draft variant activated: ${key}` : 'Global draft activated.');
+    await this.reloadDraftSnapshots();
+  }
+
+  async saveSnapshotFromDialog(): Promise<void> {
+    const ok = await this.mapStateService.saveNamedSnapshot(this.snapshotNameInput);
+    this.feedback.set(ok ? 'Draft snapshot saved.' : 'Snapshot name is required.');
+    if (ok) {
+      this.snapshotNameInput = '';
+      await this.reloadDraftSnapshots();
+    }
+  }
+
+  async restoreDraftSnapshotFromDialog(revisionId: string): Promise<void> {
+    if (this.restoringDraftSnapshotId()) {
+      return;
+    }
+
+    this.restoringDraftSnapshotId.set(revisionId);
+    try {
+      const ok = await this.mapStateService.restoreDraftSnapshot(revisionId);
+      this.feedback.set(ok ? 'Draft snapshot restored.' : 'Draft snapshot not found.');
+    } finally {
+      this.restoringDraftSnapshotId.set(null);
+    }
+  }
+
+  isRestoringDraftSnapshot(revisionId: string): boolean {
+    return this.restoringDraftSnapshotId() === revisionId;
   }
 
   closeHistoryDialog(): void {
@@ -1142,6 +1184,16 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
   private async reloadPublishedVariants(): Promise<void> {
     const variants = await this.mapStateService.listPublishedVariants();
     this.publishedVariants.set(variants);
+  }
+
+  private async reloadDraftSnapshots(): Promise<void> {
+    this.isDraftSnapshotsLoading.set(true);
+    try {
+      const snapshots = await this.mapStateService.listDraftSnapshots();
+      this.draftSnapshots.set(snapshots);
+    } finally {
+      this.isDraftSnapshotsLoading.set(false);
+    }
   }
 
   private parsePlayersPayload(content: string, fileName: string): Array<{ name: string; power: number; targetGeneralList?: GeneralPlayerListKey }> {
