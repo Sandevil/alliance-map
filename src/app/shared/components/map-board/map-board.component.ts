@@ -44,6 +44,7 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
 
   private panzoom?: PanzoomObject;
   private centerTimeoutId?: number;
+  private centerRafId?: number;
   private readonly visualViewport = typeof window !== 'undefined' ? window.visualViewport : null;
   private readonly visualViewportHandler = () => {
     if (this.highlightPlayerId) {
@@ -79,6 +80,9 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     if (this.centerTimeoutId) {
       window.clearTimeout(this.centerTimeoutId);
     }
+    if (this.centerRafId) {
+      cancelAnimationFrame(this.centerRafId);
+    }
 
     this.panzoomHost?.nativeElement.parentElement?.removeEventListener('wheel', this.wheelHandler);
     this.visualViewport?.removeEventListener('resize', this.visualViewportHandler);
@@ -102,6 +106,14 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
 
   clearHoveredCell(): void {
     this.hoveredCell = null;
+  }
+
+  setActiveCellFromTouch(x: number, y: number): void {
+    this.hoveredCell = { x, y };
+  }
+
+  get hoverHintLabel(): string {
+    return this.isNarrowViewport() ? 'Tap a cell to see coordinates' : 'Hover a cell to see coordinates';
   }
 
   trackByCell(_: number, cell: { key: string }): string {
@@ -135,6 +147,19 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
 
     this.panzoom.zoom(clampedScale, { animate: false });
     this.panzoom.pan(0, 0, { animate: false });
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+    const viewportCenterX = viewportRect.left + viewport.clientWidth / 2;
+    const viewportCenterY = viewportRect.top + viewport.clientHeight / 2;
+    const gridCenterX = gridRect.left + gridRect.width / 2;
+    const gridCenterY = gridRect.top + gridRect.height / 2;
+
+    const desiredPanX = viewportCenterX - gridCenterX;
+    const desiredPanY = viewportCenterY - gridCenterY;
+    const { panX, panY } = this.clampPanToViewport(desiredPanX, desiredPanY, clampedScale, viewport);
+
+    this.panzoom.pan(panX, panY, { animate: false });
   }
 
   getPlacementStyle(placement: TilePlacement): Record<string, string> {
@@ -202,15 +227,19 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     if (this.centerTimeoutId) {
       window.clearTimeout(this.centerTimeoutId);
     }
+    if (this.centerRafId) {
+      cancelAnimationFrame(this.centerRafId);
+    }
 
     this.panToPlayer(playerId);
-    requestAnimationFrame(() => this.panToPlayer(playerId));
-    this.centerTimeoutId = window.setTimeout(() => this.panToPlayer(playerId), 220);
+    this.centerRafId = requestAnimationFrame(() => this.panToPlayer(playerId));
+    this.centerTimeoutId = window.setTimeout(() => this.panToPlayer(playerId), 180);
   }
 
   private panToPlayer(playerId: string): void {
     const viewport = this.boardViewport?.nativeElement;
     const panzoom = this.panzoom;
+    const panzoomHost = this.panzoomHost?.nativeElement;
     if (!viewport || !panzoom) {
       return;
     }
@@ -220,20 +249,83 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
       return;
     }
 
-    const cellSize = 24;
-    const cellGap = 1;
-    const tileWidth = placement.size.w * cellSize + (placement.size.w - 1) * cellGap;
-    const tileHeight = placement.size.h * cellSize + (placement.size.h - 1) * cellGap;
-    const targetX = placement.origin.x * (cellSize + cellGap) + tileWidth / 2;
-    const targetY = placement.origin.y * (cellSize + cellGap) + tileHeight / 2;
-    const scale = panzoom.getScale();
-    const safeCenterYRatio = this.isMobileViewport(viewport) ? 0.4 : 0.5;
-    const targetCenterX = viewport.clientWidth / 2;
-    const targetCenterY = this.getEffectiveViewportHeight(viewport) * safeCenterYRatio;
+    const isMobile = this.isMobileViewport(viewport);
+    const travellerTargetScale = 1.35;
+    if (isMobile) {
+      const nextScale = Math.max(panzoom.getScale(), travellerTargetScale);
+      panzoom.zoom(nextScale, { animate: true });
+    }
 
-    panzoom.pan(targetCenterX - targetX * scale, targetCenterY - targetY * scale, {
-      animate: true,
-    });
+    const centerUsingRenderedTile = () => {
+      const tileCenter = this.getRenderedTileCenter(playerId);
+      if (!tileCenter || !panzoomHost) {
+        return;
+      }
+
+      const hostRect = panzoomHost.getBoundingClientRect();
+      const targetX = tileCenter.x - hostRect.left;
+      const targetY = tileCenter.y - hostRect.top;
+      const scale = panzoom.getScale();
+      const safeCenterYRatio = isMobile ? 0.42 : 0.5;
+      const targetCenterX = viewport.clientWidth / 2;
+      const targetCenterY = this.getEffectiveViewportHeight(viewport) * safeCenterYRatio;
+
+      const rawPanX = targetCenterX - targetX;
+      const rawPanY = targetCenterY - targetY;
+      const { panX, panY } = this.clampPanToViewport(rawPanX, rawPanY, scale, viewport);
+
+      panzoom.pan(panX, panY, {
+        animate: true,
+      });
+    };
+
+    centerUsingRenderedTile();
+    requestAnimationFrame(centerUsingRenderedTile);
+  }
+
+  private getRenderedTileCenter(playerId: string): { x: number; y: number } | null {
+    const grid = this.gridElement?.nativeElement;
+    if (!grid) {
+      return null;
+    }
+
+    const tile = grid.querySelector(`.grid__tile[data-player-id="${playerId}"]`) as HTMLElement | null;
+    if (!tile) {
+      return null;
+    }
+
+    const rect = tile.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  }
+
+  private clampPanToViewport(
+    desiredPanX: number,
+    desiredPanY: number,
+    scale: number,
+    viewport: HTMLElement,
+  ): { panX: number; panY: number } {
+    const grid = this.gridElement?.nativeElement;
+    if (!grid) {
+      return { panX: desiredPanX, panY: desiredPanY };
+    }
+
+    const scaledWidth = grid.offsetWidth * scale;
+    const scaledHeight = grid.offsetHeight * scale;
+    const viewportWidth = viewport.clientWidth;
+    const viewportHeight = this.getEffectiveViewportHeight(viewport);
+
+    const minPanX = scaledWidth <= viewportWidth ? (viewportWidth - scaledWidth) / 2 : viewportWidth - scaledWidth;
+    const maxPanX = scaledWidth <= viewportWidth ? (viewportWidth - scaledWidth) / 2 : 0;
+    const minPanY = scaledHeight <= viewportHeight ? (viewportHeight - scaledHeight) / 2 : viewportHeight - scaledHeight;
+    const maxPanY = scaledHeight <= viewportHeight ? (viewportHeight - scaledHeight) / 2 : 0;
+
+    const panX = Math.min(maxPanX, Math.max(minPanX, desiredPanX));
+    const panY = Math.min(maxPanY, Math.max(minPanY, desiredPanY));
+
+    return { panX, panY };
   }
 
   private isMobileViewport(viewport: HTMLElement): boolean {
@@ -241,8 +333,25 @@ export class MapBoardComponent implements AfterViewInit, OnDestroy, OnChanges {
     return viewportWidth <= 768;
   }
 
+  private isNarrowViewport(): boolean {
+    const viewport = this.boardViewport?.nativeElement;
+    const viewportWidth = this.visualViewport?.width ?? viewport?.clientWidth ?? window.innerWidth;
+    return viewportWidth <= 768;
+  }
+
+  private getCurrentCellSize(): number {
+    const grid = this.gridElement?.nativeElement;
+    if (!grid) {
+      return 24;
+    }
+
+    const computed = getComputedStyle(grid).getPropertyValue('--cell-size').trim();
+    const parsed = Number.parseFloat(computed.replace('px', ''));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 24;
+  }
+
   private getEffectiveViewportHeight(viewport: HTMLElement): number {
-    return this.visualViewport?.height ?? viewport.clientHeight;
+    return viewport.clientHeight;
   }
 
   private getPlayerNameById(playerId?: string): string {

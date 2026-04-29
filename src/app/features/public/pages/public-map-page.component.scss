@@ -70,6 +70,7 @@
   min-width: 0;
   display: grid;
   gap: 10px;
+  overflow: hidden;
 }
 
 .public-page__board-wrap app-map-board {
@@ -186,6 +187,7 @@
     padding: 10px;
     gap: 10px;
     grid-template-rows: auto minmax(0, 1fr);
+    min-height: 100dvh;
   }
 
   .public-page__header {
@@ -216,18 +218,25 @@
 
   .public-page__content {
     gap: 8px;
-    grid-template-rows: auto minmax(240px, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
   }
 
   .public-search {
-    max-height: 30dvh;
+    max-height: min(24dvh, 220px);
     overflow: auto;
     padding: 10px;
     gap: 8px;
   }
 
   .public-page__board-wrap {
-    min-height: 240px;
+    min-height: clamp(320px, 62dvh, 78dvh);
+    height: clamp(320px, 62dvh, 78dvh);
+  }
+
+  .public-page__board-wrap app-map-board {
+    height: 100%;
+    min-height: 0;
   }
 
   .public-search__results button {
@@ -239,9 +248,16 @@
     line-height: 1.25;
   }
 
-  .public-page__legend-floating {
-    left: 8px;
-    bottom: 8px;
-    width: min(180px, calc(100% - 16px));
+  .public-page__legend-floating--mobile-safe {
+    position: static;
+    width: 100%;
+    max-width: 100%;
+    order: 2;
+    pointer-events: auto;
+  }
+
+  .public-page__legend-floating--mobile-safe app-map-legend {
+    display: block;
+    max-width: 100%;
   }
 }

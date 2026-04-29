@@ -7,4 +7,10 @@ import { CommonModule } from '@angular/common';
   templateUrl: './map-legend.component.html',
   styleUrl: './map-legend.component.scss',
 })
-export class MapLegendComponent {}
+export class MapLegendComponent {
+  isCollapsed = true;
+
+  toggleCollapsed(): void {
+    this.isCollapsed = !this.isCollapsed;
+  }
+}

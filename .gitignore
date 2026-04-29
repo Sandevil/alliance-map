@@ -46,3 +46,7 @@ Thumbs.db
 .vscode/tasks.json
 public/env.js
 .gitignore
+test-results/.last-run.json
+test-results/public-mobile-diagnostic.png
+test-results/.last-run.json
+test-results/public-mobile-diagnostic.png

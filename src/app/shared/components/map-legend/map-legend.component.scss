@@ -14,6 +14,22 @@
   font-size: 0.9rem;
 }
 
+.legend__toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #334155;
+  background: rgba(30, 41, 59, 0.9);
+  color: #f8fafc;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
 .legend ul {
   margin: 0;
   padding: 0;
@@ -27,6 +43,10 @@
   align-items: center;
   gap: 8px;
   font-size: 0.82rem;
+}
+
+.legend__label--compact {
+  display: none;
 }
 
 .legend__swatch {
@@ -45,3 +65,31 @@
 .legend__swatch--resource { background: rgba(16, 185, 129, 0.82); }
 .legend__swatch--trap { background: rgba(14, 165, 233, 0.75); }
 .legend__swatch--fortress { background: rgba(168, 85, 247, 0.85); }
+
+@media (max-width: 768px) {
+  .legend {
+    padding: 8px;
+  }
+
+  .legend ul {
+    gap: 5px;
+  }
+
+  .legend li {
+    font-size: 0.76rem;
+    gap: 6px;
+  }
+
+  .legend__swatch {
+    width: 12px;
+    height: 12px;
+  }
+
+  .legend__label--full {
+    display: none;
+  }
+
+  .legend__label--compact {
+    display: inline;
+  }
+}

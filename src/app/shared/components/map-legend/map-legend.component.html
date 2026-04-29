@@ -1,14 +1,56 @@
 <section class="legend" aria-label="Map legend">
-  <h3>Legend</h3>
-  <ul>
-    <li><span class="legend__swatch legend__swatch--city-trap1"></span><span>Town (Trap 1 Main)</span></li>
-    <li><span class="legend__swatch legend__swatch--city-trap1-general"></span><span>Town (Trap 1 General)</span></li>
-    <li><span class="legend__swatch legend__swatch--city-trap2"></span><span>Town (Trap 2 Main)</span></li>
-    <li><span class="legend__swatch legend__swatch--city-trap2-general"></span><span>Town (Trap 2 General)</span></li>
-    <li><span class="legend__swatch legend__swatch--city-no-trap-general"></span><span>Town (No Trap General)</span></li>
-    <li><span class="legend__swatch legend__swatch--banner"></span><span>Banner</span></li>
-    <li><span class="legend__swatch legend__swatch--resource"></span><span>Alliance Resource</span></li>
-    <li><span class="legend__swatch legend__swatch--trap"></span><span>Bear Traps</span></li>
-    <li><span class="legend__swatch legend__swatch--fortress"></span><span>Fortress</span></li>
-  </ul>
+  <button type="button" class="legend__toggle" (click)="toggleCollapsed()" [attr.aria-expanded]="!isCollapsed">
+    <span>Legend</span>
+    <span>{{ isCollapsed ? '▸' : '▾' }}</span>
+  </button>
+
+  @if (!isCollapsed) {
+    <ul>
+      <li>
+        <span class="legend__swatch legend__swatch--city-trap1"></span>
+        <span class="legend__label legend__label--full">Town (Trap 1 Main)</span>
+        <span class="legend__label legend__label--compact">T1 Main</span>
+      </li>
+      <li>
+        <span class="legend__swatch legend__swatch--city-trap1-general"></span>
+        <span class="legend__label legend__label--full">Town (Trap 1 General)</span>
+        <span class="legend__label legend__label--compact">T1 Gen</span>
+      </li>
+      <li>
+        <span class="legend__swatch legend__swatch--city-trap2"></span>
+        <span class="legend__label legend__label--full">Town (Trap 2 Main)</span>
+        <span class="legend__label legend__label--compact">T2 Main</span>
+      </li>
+      <li>
+        <span class="legend__swatch legend__swatch--city-trap2-general"></span>
+        <span class="legend__label legend__label--full">Town (Trap 2 General)</span>
+        <span class="legend__label legend__label--compact">T2 Gen</span>
+      </li>
+      <li>
+        <span class="legend__swatch legend__swatch--city-no-trap-general"></span>
+        <span class="legend__label legend__label--full">Town (No Trap General)</span>
+        <span class="legend__label legend__label--compact">No Trap</span>
+      </li>
+      <li>
+        <span class="legend__swatch legend__swatch--banner"></span>
+        <span class="legend__label legend__label--full">Banner</span>
+        <span class="legend__label legend__label--compact">Banner</span>
+      </li>
+      <li>
+        <span class="legend__swatch legend__swatch--resource"></span>
+        <span class="legend__label legend__label--full">Alliance Resource</span>
+        <span class="legend__label legend__label--compact">Res</span>
+      </li>
+      <li>
+        <span class="legend__swatch legend__swatch--trap"></span>
+        <span class="legend__label legend__label--full">Bear Traps</span>
+        <span class="legend__label legend__label--compact">Trap</span>
+      </li>
+      <li>
+        <span class="legend__swatch legend__swatch--fortress"></span>
+        <span class="legend__label legend__label--full">Fortress</span>
+        <span class="legend__label legend__label--compact">Fort</span>
+      </li>
+    </ul>
+  }
 </section>

@@ -3,7 +3,7 @@
     @if (hoveredCell; as cell) {
       <p>Internal: {{ cell.x }}/{{ cell.y }} · External: {{ getExternalCoordsLabel(cell.x, cell.y) }}</p>
     } @else {
-      <p>Hover a cell to see coordinates</p>
+      <p>{{ hoverHintLabel }}</p>
     }
   </div>
 
@@ -20,6 +20,7 @@
               [attr.data-y]="cell.y"
               (mouseenter)="setHoveredCell(cell.x, cell.y)"
               (mouseleave)="clearHoveredCell()"
+              (pointerdown)="setActiveCellFromTouch(cell.x, cell.y)"
               (focus)="setHoveredCell(cell.x, cell.y)">
             </button>
           }
@@ -28,6 +29,7 @@
         @for (placement of state.placements; track placement.id) {
           <article
             class="grid__tile"
+            [attr.data-player-id]="placement.type === 'city' ? placement.playerId : null"
             [class.grid__tile--highlight]="isPlacementHighlighted(placement)"
             [ngClass]="[
               'grid__tile--' + placement.type,
