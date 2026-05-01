@@ -67,8 +67,18 @@ export function movePlayerBetweenLists(state: MapState, playerId: string, to: Pl
     return errorResult('PLAYER_NOT_FOUND', `Player ${playerId} not found in ${from}.`);
   }
 
+  const movedPlayer: Player = isGeneralList(to)
+    ? {
+        ...player,
+        homeGeneralList: to,
+      }
+    : {
+        ...player,
+        homeGeneralList: to,
+      };
+
   state.players[from] = state.players[from].filter((item) => item.id !== playerId);
-  state.players[to] = [...state.players[to], player];
+  state.players[to] = [...state.players[to], movedPlayer];
 
   return okResult();
 }

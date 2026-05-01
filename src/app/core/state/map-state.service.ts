@@ -476,6 +476,7 @@ export class MapStateService {
 
   removePlacement(placementId: string): void {
     const next = this.cloneState();
+    this.normalizeHomeGeneralLists(next);
     const target = next.placements.find((placement) => placement.id === placementId);
 
     if (!target) {
@@ -591,6 +592,8 @@ export class MapStateService {
       parsed.players.noTrapGeneral = [];
     }
 
+    this.normalizeHomeGeneralLists(parsed);
+
     if (!this.isFiniteNumber(parsed.settings?.grid?.width) || !this.isFiniteNumber(parsed.settings?.grid?.height)) {
       return {
         ok: false,
@@ -624,7 +627,9 @@ export class MapStateService {
           typeof player.name !== 'string' ||
           !this.isFiniteNumber(player.power) ||
           player.power < 0 ||
-          (player.homeGeneralList !== 'trap1General' &&
+          (player.homeGeneralList !== 'trap1Main' &&
+            player.homeGeneralList !== 'trap2Main' &&
+            player.homeGeneralList !== 'trap1General' &&
             player.homeGeneralList !== 'trap2General' &&
             player.homeGeneralList !== 'noTrapGeneral')
         ) {
@@ -753,15 +758,21 @@ export class MapStateService {
       list
         .filter((item) => this.isRecord(item))
         .map((player) => {
-          const homeGeneralList: GeneralPlayerListKey =
+          const homeGeneralList: PlayerListKey =
+            player['homeGeneralList'] === 'trap1Main' ||
+            player['homeGeneralList'] === 'trap2Main' ||
             player['homeGeneralList'] === 'trap1General' ||
             player['homeGeneralList'] === 'trap2General' ||
             player['homeGeneralList'] === 'noTrapGeneral'
               ? player['homeGeneralList']
-              : listKey === 'trap2General' || listKey === 'trap2Main'
-                ? 'trap2General'
+              : listKey === 'trap2Main'
+                ? 'trap2Main'
+                : listKey === 'trap2General'
+                  ? 'trap2General'
                 : listKey === 'noTrapGeneral'
                   ? 'noTrapGeneral'
+                : listKey === 'trap1Main'
+                  ? 'trap1Main'
                 : 'trap1General';
 
           return {
@@ -823,6 +834,28 @@ export class MapStateService {
 
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
+  }
+
+  private normalizeHomeGeneralLists(state: MapState): void {
+    for (const player of state.players.trap1General) {
+      player.homeGeneralList = 'trap1General';
+    }
+
+    for (const player of state.players.trap2General) {
+      player.homeGeneralList = 'trap2General';
+    }
+
+    for (const player of state.players.noTrapGeneral) {
+      player.homeGeneralList = 'noTrapGeneral';
+    }
+
+    for (const player of state.players.trap1Main) {
+      player.homeGeneralList = 'trap1Main';
+    }
+
+    for (const player of state.players.trap2Main) {
+      player.homeGeneralList = 'trap2Main';
+    }
   }
 
   private isFiniteNumber(value: unknown): value is number {

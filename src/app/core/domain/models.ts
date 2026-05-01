@@ -33,7 +33,7 @@ export interface Player {
   id: string;
   name: string;
   power: number;
-  homeGeneralList: GeneralPlayerListKey;
+  homeGeneralList: PlayerListKey;
 }
 
 export interface PlayerLists {

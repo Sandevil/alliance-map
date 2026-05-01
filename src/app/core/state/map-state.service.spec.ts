@@ -105,7 +105,7 @@ describe('MapStateService', () => {
     expect(service.snapshot.placements[0]?.origin.y).toBe(0);
   });
 
-  it('returns removed city player to home list when resize pushes city out of bounds', () => {
+  it('returns removed city player to trap1Main when resize pushes city out of bounds', () => {
     service.addPlayer({
       id: 'p1',
       name: 'Player One',
@@ -128,8 +128,56 @@ describe('MapStateService', () => {
 
     expect(result.ok).toBeTrue();
     expect(service.snapshot.placements.some((placement) => placement.id === 'city-1')).toBeFalse();
-    expect(service.snapshot.players.trap1Main.some((player) => player.id === 'p1')).toBeFalse();
-    expect(service.snapshot.players.trap1General.some((player) => player.id === 'p1')).toBeTrue();
+    expect(service.snapshot.players.trap1Main.some((player) => player.id === 'p1')).toBeTrue();
+    expect(service.snapshot.players.trap1General.some((player) => player.id === 'p1')).toBeFalse();
+  });
+
+  it('returns removed city player to trap2Main when city is deleted', () => {
+    service.addPlayer({
+      id: 'p2',
+      name: 'Player Two',
+      power: 200,
+      targetGeneralList: 'trap2General',
+    });
+    service.movePlayer('p2', 'trap2Main');
+
+    service.addPlacement({
+      id: 'city-2',
+      type: 'city',
+      origin: { x: 5, y: 5 },
+      size: TILE_RULES.city.size,
+      playerId: 'p2',
+    });
+
+    service.removePlacement('city-2');
+
+    expect(service.snapshot.placements.some((placement) => placement.id === 'city-2')).toBeFalse();
+    expect(service.snapshot.players.trap2Main.some((player) => player.id === 'p2')).toBeTrue();
+    expect(service.snapshot.players.trap2General.some((player) => player.id === 'p2')).toBeFalse();
+  });
+
+  it('returns removed city player to trap1Main when current assigned list is trap1Main', () => {
+    service.addPlayer({
+      id: 'p3',
+      name: 'Player Three',
+      power: 300,
+      targetGeneralList: 'noTrapGeneral',
+    });
+    service.movePlayer('p3', 'trap1Main');
+
+    service.addPlacement({
+      id: 'city-3',
+      type: 'city',
+      origin: { x: 8, y: 8 },
+      size: TILE_RULES.city.size,
+      playerId: 'p3',
+    });
+
+    service.removePlacement('city-3');
+
+    expect(service.snapshot.placements.some((placement) => placement.id === 'city-3')).toBeFalse();
+    expect(service.snapshot.players.trap1Main.some((player) => player.id === 'p3')).toBeTrue();
+    expect(service.snapshot.players.noTrapGeneral.some((player) => player.id === 'p3')).toBeFalse();
   });
 
   it('upserts players by normalized name (update existing and create new)', () => {
@@ -191,5 +239,34 @@ describe('MapStateService', () => {
 
     expect(result.ok).toBeTrue();
     expect(service.snapshot.players.noTrapGeneral.some((player) => player.name === 'No Trap Default')).toBeTrue();
+  });
+
+  it('normalizes legacy homeGeneralList on import and returns deleted city player to corrected home list', () => {
+    const legacyLikeState = service.exportState();
+    legacyLikeState.players.trap2Main = [
+      {
+        id: 'legacy-p2',
+        name: 'Legacy Trap 2',
+        power: 500,
+        homeGeneralList: 'trap1General',
+      },
+    ];
+    legacyLikeState.placements = [
+      {
+        id: 'legacy-city-2',
+        type: 'city',
+        origin: { x: 4, y: 4 },
+        size: TILE_RULES.city.size,
+        playerId: 'legacy-p2',
+      },
+    ];
+
+    const importResult = service.importState(legacyLikeState);
+    expect(importResult.ok).toBeTrue();
+
+    service.removePlacement('legacy-city-2');
+
+    expect(service.snapshot.players.trap2General.some((player) => player.id === 'legacy-p2')).toBeFalse();
+    expect(service.snapshot.players.trap2Main.some((player) => player.id === 'legacy-p2')).toBeTrue();
   });
 });
