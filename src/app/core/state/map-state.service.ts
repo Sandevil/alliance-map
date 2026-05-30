@@ -492,6 +492,20 @@ export class MapStateService {
     this.stateSubject.next(next);
   }
 
+  clearPlayerPlacementsFromMap(): { removedCount: number } {
+    const next = this.cloneState();
+    const removedCount = next.placements.filter((placement) => placement.type === 'city').length;
+
+    if (removedCount === 0) {
+      return { removedCount: 0 };
+    }
+
+    next.placements = next.placements.filter((placement) => placement.type !== 'city');
+    this.stateSubject.next(next);
+
+    return { removedCount };
+  }
+
   movePlacement(placementId: string, origin: Coord): RuleValidationResult {
     const next = this.cloneState();
     const index = next.placements.findIndex((placement) => placement.id === placementId);

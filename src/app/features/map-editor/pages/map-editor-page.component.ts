@@ -767,6 +767,10 @@ export class MapEditorPageComponent implements AfterViewInit, OnDestroy {
     void this.router.navigateByUrl('/');
   }
 
+  goToPlayersManager(): void {
+    void this.router.navigateByUrl('/admin/players');
+  }
+
   toggleTileCatalog(): void {
     this.isTileCatalogOpen.update((value) => !value);
     this.persistUiPreferences();

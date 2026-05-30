@@ -180,6 +180,38 @@ describe('MapStateService', () => {
     expect(service.snapshot.players.noTrapGeneral.some((player) => player.id === 'p3')).toBeFalse();
   });
 
+  it('clears only city placements from map and keeps players in current lists', () => {
+    service.addPlayer({
+      id: 'p-reset',
+      name: 'Reset Player',
+      power: 111,
+      targetGeneralList: 'trap1General',
+    });
+    service.movePlayer('p-reset', 'trap1Main');
+
+    service.addPlacement({
+      id: 'city-reset',
+      type: 'city',
+      origin: { x: 6, y: 6 },
+      size: TILE_RULES.city.size,
+      playerId: 'p-reset',
+    });
+
+    service.addPlacement({
+      id: 'banner-keep',
+      type: 'banner',
+      origin: { x: 2, y: 2 },
+      size: TILE_RULES.banner.size,
+    });
+
+    const result = service.clearPlayerPlacementsFromMap();
+
+    expect(result.removedCount).toBe(1);
+    expect(service.snapshot.placements.some((placement) => placement.id === 'city-reset')).toBeFalse();
+    expect(service.snapshot.placements.some((placement) => placement.id === 'banner-keep')).toBeTrue();
+    expect(service.snapshot.players.trap1Main.some((player) => player.id === 'p-reset')).toBeTrue();
+  });
+
   it('upserts players by normalized name (update existing and create new)', () => {
     service.addPlayer({
       id: 'existing-1',

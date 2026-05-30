@@ -1,0 +1,84 @@
+<main class="admin-players">
+  <header class="admin-players__header">
+    <p class="admin-players__brand">CRU Territory Planner</p>
+    <h1>Player manager</h1>
+    <p>Edit players in bulk, sort quickly, and reset town positions without losing player assignments.</p>
+
+    <div class="admin-players__links">
+      <a routerLink="/admin">Back to admin map</a>
+      <a routerLink="/">Public view</a>
+    </div>
+  </header>
+
+  <section class="admin-players__toolbar">
+    <button type="button" (click)="saveAll()" [disabled]="isSaving() || !hasUnsavedChanges()">
+      {{ isSaving() ? 'Saving...' : 'Save all' }}
+    </button>
+    <button type="button" (click)="discardChanges()" [disabled]="isSaving() || !hasUnsavedChanges()">Discard changes</button>
+    <button type="button" class="btn-warn" (click)="resetPlayerPositionsFromMap()">Reset player positions on map</button>
+  </section>
+
+  @if (feedback(); as message) {
+    <p class="admin-players__feedback">{{ message }}</p>
+  }
+
+  <section class="admin-players__table-wrap">
+    <table class="admin-players__table">
+      <thead>
+        <tr>
+          <th>
+            <button type="button" class="sort-btn" (click)="setSort('name')">
+              Name <span>{{ sortIndicator('name') }}</span>
+            </button>
+          </th>
+          <th>
+            <button type="button" class="sort-btn" (click)="setSort('power')">
+              Power <span>{{ sortIndicator('power') }}</span>
+            </button>
+          </th>
+          <th>
+            <button type="button" class="sort-btn" (click)="setSort('currentList')">
+              Current list <span>{{ sortIndicator('currentList') }}</span>
+            </button>
+          </th>
+          <th>ID</th>
+          <th>Home list (read-only)</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of sortedRows(); track row.id) {
+          <tr [class.row--dirty]="isRowDirty(row)" [class.row--error]="!!row.error">
+            <td>
+              <input type="text" [ngModel]="row.name" (ngModelChange)="updateRowName(row.id, $event)" />
+            </td>
+            <td>
+              <input type="number" min="0" [ngModel]="row.power" (ngModelChange)="updateRowPower(row.id, $event)" />
+            </td>
+            <td>
+              <select [ngModel]="row.currentList" (ngModelChange)="updateRowCurrentList(row.id, $event)">
+                @for (list of playerListOptions; track list) {
+                  <option [value]="list">{{ getListTitle(list) }}</option>
+                }
+              </select>
+            </td>
+            <td class="cell-id">{{ row.id }}</td>
+            <td>{{ getListTitle(row.homeGeneralList) }}</td>
+            <td>
+              <button type="button" class="btn-danger" (click)="deletePlayer(row.id)">Delete</button>
+            </td>
+          </tr>
+          @if (row.error) {
+            <tr class="row-error-line">
+              <td colspan="6">{{ row.error }}</td>
+            </tr>
+          }
+        } @empty {
+          <tr>
+            <td colspan="6" class="empty">No players available.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+</main>

@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { MapEditorPageComponent } from './features/map-editor/pages/map-editor-page.component';
 import { PublicMapPageComponent } from './features/public/pages/public-map-page.component';
 import { AdminLoginPageComponent } from './features/admin/pages/admin-login-page.component';
+import { AdminPlayersPageComponent } from './features/admin/pages/admin-players-page.component';
 import { adminAuthGuard } from './core/auth/admin-auth.guard';
 
 export const routes: Routes = [
@@ -16,6 +17,11 @@ export const routes: Routes = [
   {
     path: 'admin/login',
     component: AdminLoginPageComponent,
+  },
+  {
+    path: 'admin/players',
+    component: AdminPlayersPageComponent,
+    canActivate: [adminAuthGuard],
   },
   {
     path: 'admin',
