@@ -97,7 +97,8 @@ export class CloudMapDataRepository implements MapDataRepository {
       .eq('variant_key', normalizedKey)
       .maybeSingle();
 
-    const joinedState = (data as { map_states?: Array<{ state?: MapState }> } | null)?.map_states?.[0]?.state;
+    const joined = (data as { map_states?: { state?: MapState } | Array<{ state?: MapState }> } | null)?.map_states;
+    const joinedState = Array.isArray(joined) ? joined[0]?.state : joined?.state;
     if (!error && joinedState) {
       return joinedState;
     }
